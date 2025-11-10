@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 4000;
 //app.use(cors());
 //app.use(express.json());
 app.use(cors({
-  origin: "*", // allow all origins (safe for development)
+  origin: "https://smart-village1.netlify.app/", // allow all origins (safe for development)
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"],
 }));
