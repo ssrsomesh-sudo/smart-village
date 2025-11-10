@@ -136,7 +136,7 @@ function Residents() {
     if (!window.confirm(`Delete record for "${name}"?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:4000/records/${id}`, {
+      const response = await fetch(`https://smart-village-cn6f.onrender.com/records/${id}`, {
         method: "DELETE",
       });
 
