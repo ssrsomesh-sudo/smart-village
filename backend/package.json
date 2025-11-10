@@ -1,0 +1,30 @@
+{
+  "name": "smart-village-backend",
+  "version": "1.0.0",
+  "description": "Smart Village Backend API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "import": "node importFamilyRecords.js",
+    "studio": "npx prisma studio"
+  },
+  "keywords": [],
+  "author": "somesh",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "prisma": "^6.19.0",
+    "sqlite3": "^5.1.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2"
+  }
+}
