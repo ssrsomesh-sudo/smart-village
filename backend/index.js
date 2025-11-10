@@ -1,3 +1,4 @@
+// Trigger redeploy to apply Prisma migrations
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
@@ -6,8 +7,6 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
-//app.use(cors());
-//app.use(express.json());
 app.use(cors({
   origin: "https://smart-village1.netlify.app/", // allow all origins (safe for development)
   methods: ["GET", "POST", "PUT", "DELETE"],
