@@ -28,7 +28,7 @@ function Settings() {
 
   const handleExportData = async () => {
     try {
-      const res = await fetch("http://localhost:4000/records");
+      const res = await fetch("https://smart-village-cn6f.onrender.com/records");
       const data = await res.json();
       
       const dataStr = JSON.stringify(data, null, 2);
