@@ -8,9 +8,11 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors({
-  origin: "https://smart-village1.netlify.app", // allow all origins (safe for development)
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type"],
+  origin: [
+    'https://smart-village1.netlify.app',
+    'https://smart-village1.netlify.app/'
+  ],
+  credentials: true
 }));
 // Test route
 app.get('/', (req, res) => {
