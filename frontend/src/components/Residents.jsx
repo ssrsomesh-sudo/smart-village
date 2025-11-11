@@ -69,11 +69,11 @@ function Residents() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("💾 Saving...");
-
+  const API_URL = "https://smart-village-cn6f.onrender.com";
     try {
       const url = editingId 
-        ? `http://localhost:4000/records/${editingId}`
-        : "http://localhost:4000/records";
+        ? `${API_URL}/records/${editingId}`
+        : `${API_URL}/records`;
       
       const method = editingId ? "PUT" : "POST";
 
@@ -136,7 +136,7 @@ function Residents() {
     if (!window.confirm(`Delete record for "${name}"?`)) return;
 
     try {
-      const response = await fetch(`https://smart-village-cn6f.onrender.com/records/${id}`, {
+      const response = fetch(`${API_URL}/records/${id}`, {
         method: "DELETE",
       });
 

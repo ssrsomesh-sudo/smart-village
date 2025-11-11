@@ -4,7 +4,6 @@ const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 const multer = require('multer');
 const XLSX = require('xlsx');
-
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
@@ -29,6 +28,17 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only Excel files are allowed!'), false);
+    }
+  }
+});
+// 📦 Separate upload instance for JSON backup files
+const backupUpload = multer({
+  dest: 'uploads/',
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/json') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JSON files are allowed for backup restore!'), false);
     }
   }
 });
@@ -508,6 +518,9 @@ app.get('/search', async (req, res) => {
 });
 
 // ✅ GET - Export all data as backup (JSON format)
+const fs = require('fs');
+
+// ✅ Export backup (download as JSON)
 app.get('/backup/export', async (req, res) => {
   try {
     const records = await prisma.familyRecord.findMany({
@@ -526,6 +539,71 @@ app.get('/backup/export', async (req, res) => {
   } catch (error) {
     console.error('Error exporting backup:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Restore backup (upload JSON file)
+app.post('/backup/restore', backupUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No backup file uploaded' });
+    }
+
+    const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+    const backupData = JSON.parse(fileContent);
+
+    if (!backupData.data || !Array.isArray(backupData.data)) {
+      return res.status(400).json({ error: 'Invalid backup file format' });
+    }
+
+    console.log(`Restoring ${backupData.data.length} records from backup...`);
+
+    let restoredCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    for (const record of backupData.data) {
+      try {
+        const { id, ...recordData } = record;
+        const existing = await prisma.familyRecord.findFirst({
+          where: {
+            mandalName: recordData.mandalName,
+            villageName: recordData.villageName,
+            name: recordData.name,
+            phoneNumber: recordData.phoneNumber
+          }
+        });
+
+        if (existing) {
+          skippedCount++;
+          continue;
+        }
+
+        if (recordData.dateOfBirth) {
+          recordData.dateOfBirth = new Date(recordData.dateOfBirth);
+        }
+
+        await prisma.familyRecord.create({ data: recordData });
+        restoredCount++;
+      } catch (error) {
+        errorCount++;
+        console.error('Error restoring record:', error.message);
+      }
+    }
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      message: 'Backup restore completed successfully.',
+      totalInBackup: backupData.data.length,
+      restoredRecords: restoredCount,
+      skippedDuplicates: skippedCount,
+      errors: errorCount
+    });
+
+  } catch (error) {
+    console.error('Error restoring backup:', error);
+    res.status(500).json({ error: 'Failed to restore backup.', details: error.message });
   }
 });
 
@@ -657,6 +735,80 @@ app.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ✅ Export backup (download as JSON)
+app.get('/backup/export', async (req, res) => {
+  try {
+    const records = await prisma.familyRecord.findMany();
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      totalRecords: records.length,
+      data: records
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=smart-village-backup.json');
+    res.send(JSON.stringify(backupData, null, 2));
+  } catch (error) {
+    console.error('Error exporting backup:', error);
+    res.status(500).json({ error: 'Failed to export backup.' });
+  }
+});
+
+// ✅ Restore backup (upload JSON file)
+app.post('/backup/restore', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    const filePath = req.file.path;
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const backupData = JSON.parse(fileContent);
+
+    let restoredRecords = 0;
+    let skippedDuplicates = 0;
+    let errors = 0;
+
+    for (const record of backupData.data) {
+      try {
+        // Check if same record exists (based on name + phoneNumber)
+        const existing = await prisma.familyRecord.findFirst({
+          where: {
+            name: record.name,
+            phoneNumber: record.phoneNumber,
+          },
+        });
+
+        if (existing) {
+          skippedDuplicates++;
+          continue;
+        }
+
+        await prisma.familyRecord.create({ data: record });
+        restoredRecords++;
+      } catch (err) {
+        console.error('Error restoring record:', err);
+        errors++;
+      }
+    }
+
+    // Clean up temp file
+    fs.unlinkSync(filePath);
+
+    res.json({
+      message: 'Backup restore completed successfully.',
+      totalInBackup: backupData.data.length,
+      restoredRecords,
+      skippedDuplicates,
+      errors,
+    });
+  } catch (error) {
+    console.error('Error restoring backup:', error);
+    res.status(500).json({ error: 'Failed to restore backup.' });
   }
 });
 
