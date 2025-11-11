@@ -34,21 +34,24 @@
 }
 
 .card {
-  padding: 2em;
+  padding: 1em;
 }
 
 .read-the-docs {
   color: #888;
 }
 
-/* Dashboard card layout */
+/* 🧩 Dashboard cards layout - clean and responsive */
 .row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem; /* spacing between cards */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  justify-items: center;
+  align-items: stretch;
+  margin-bottom: 2rem;
 }
 
-.row > .col {
-  flex: 1 0 16%; /* 6 cards per row roughly */
-  min-width: 180px; /* keeps cards readable on small screens */
+.col {
+  width: 100%;
+  max-width: 240px;
 }
