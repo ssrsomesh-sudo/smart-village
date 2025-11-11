@@ -40,3 +40,15 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Dashboard card layout */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem; /* spacing between cards */
+}
+
+.row > .col {
+  flex: 1 0 16%; /* 6 cards per row roughly */
+  min-width: 180px; /* keeps cards readable on small screens */
+}

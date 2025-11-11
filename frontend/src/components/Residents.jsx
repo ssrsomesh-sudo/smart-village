@@ -132,25 +132,26 @@ function Residents() {
     setEditingId(null);
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete record for "${name}"?`)) return;
+ const handleDelete = async (id, name) => {
+  if (!window.confirm(`Delete record for "${name}"?`)) return;
 
-    try {
-      const response = fetch(`${API_URL}/records/${id}`, {
-        method: "DELETE",
-      });
+  try {
+    const response = await fetch(`${API_URL}/records/${id}`, {
+      method: "DELETE",
+    });
 
-      if (response.ok) {
-        setMessage("✅ Record deleted!");
-        loadRecords();
-        setTimeout(() => setMessage(""), 3000);
-      } else {
-        setMessage("❌ Failed to delete.");
-      }
-    } catch (err) {
-      setMessage("⚠️ Cannot connect to backend.");
+    if (response.ok) {
+      setMessage("✅ Record deleted!");
+      loadRecords();
+      setTimeout(() => setMessage(""), 3000);
+    } else {
+      setMessage("❌ Failed to delete record.");
     }
-  };
+  } catch (err) {
+    console.error("Delete error:", err);
+    setMessage("⚠️ Cannot connect to backend.");
+  }
+};
 
   const resetFilters = () => {
     setSelectedMandal("");

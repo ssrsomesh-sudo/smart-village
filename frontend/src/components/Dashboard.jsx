@@ -60,6 +60,7 @@ function Dashboard() {
     male: filteredRecords.filter(r => r.gender === "MALE").length,
     female: filteredRecords.filter(r => r.gender === "FEMALE").length,
     uniqueRationCards: new Set(filteredRecords.map(r => r.rationCard).filter(Boolean)).size,
+    uniqueVoterCards: new Set(filteredRecords.map(r => r.voterCard).filter(Boolean)).size,
   };
 
   // Calculate age groups
@@ -168,6 +169,7 @@ function Dashboard() {
         <StatsCard icon="👨" title="Male" value={stats.male} bgColor="info" />
         <StatsCard icon="👩" title="Female" value={stats.female} bgColor="warning" textColor="dark" />
         <StatsCard icon="🎫" title="Ration Cards" value={stats.uniqueRationCards} bgColor="danger" />
+         <StatsCard icon="🗳" title="Voter Cards" value={stats.uniqueVoterCards} bgColor="secondary" />
       </div>
 
       {/* Field Summaries */}
