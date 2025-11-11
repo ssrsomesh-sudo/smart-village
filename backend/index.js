@@ -4,10 +4,12 @@ const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 const multer = require('multer');
 const XLSX = require('xlsx');
+
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
+// CORS configuration
 app.use(cors({
   origin: [
     'https://smart-village1.netlify.app',
@@ -16,7 +18,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Body parser middleware - IMPORTANT for DELETE requests
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Configure multer for file uploads (store in memory)
 const storage = multer.memoryStorage();
@@ -24,21 +28,11 @@ const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-        file.mimetype === 'application/vnd.ms-excel') {
+        file.mimetype === 'application/vnd.ms-excel' ||
+        file.mimetype === 'application/json') {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel files are allowed!'), false);
-    }
-  }
-});
-// 📦 Separate upload instance for JSON backup files
-const backupUpload = multer({
-  dest: 'uploads/',
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/json') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JSON files are allowed for backup restore!'), false);
+      cb(new Error('Only Excel or JSON files are allowed!'), false);
     }
   }
 });
@@ -112,11 +106,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Excel file is empty' });
     }
 
-    // Log the columns found in the Excel file
     const sampleRow = rawData[0];
     const columnNames = Object.keys(sampleRow);
     console.log('Excel columns found:', columnNames);
-
     console.log(`Found ${rawData.length} records in Excel file`);
 
     // Helper function to get value from row with multiple possible column names
@@ -129,7 +121,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return null;
     };
 
-    // Transform data to match Prisma schema with flexible column matching
+    // Transform data to match Prisma schema
     const transformedData = rawData.map((row) => {
       const dateOfBirth = parseExcelDate(
         getColumnValue(row, ['DATE OF BIRTH', 'Date of Birth', 'DOB', 'dateOfBirth'])
@@ -161,7 +153,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       };
     });
 
-    // Validate required fields and log issues
+    // Validate required fields
     const validData = [];
     const invalidData = [];
     
@@ -205,7 +197,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     for (const record of validData) {
       try {
-        // Check if duplicate exists
         const existing = await prisma.familyRecord.findFirst({
           where: {
             mandalName: record.mandalName,
@@ -220,7 +211,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
           continue;
         }
 
-        // Create new record
         await prisma.familyRecord.create({
           data: record
         });
@@ -415,11 +405,14 @@ app.delete('/records/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
+    console.log(`DELETE request received for record ID: ${id}`);
+
     const existingRecord = await prisma.familyRecord.findUnique({
       where: { id }
     });
 
     if (!existingRecord) {
+      console.log(`Record ${id} not found`);
       return res.status(404).json({ error: 'Record not found' });
     }
 
@@ -427,6 +420,7 @@ app.delete('/records/:id', async (req, res) => {
       where: { id }
     });
 
+    console.log(`Record ${id} deleted successfully`);
     res.json({ message: 'Record deleted successfully', id });
   } catch (error) {
     console.error('Error deleting record:', error);
@@ -452,7 +446,6 @@ app.get('/search', async (req, res) => {
 
     console.log('Search params:', req.query);
 
-    // Build dynamic where clause
     const where = {};
 
     if (name) {
@@ -482,7 +475,6 @@ app.get('/search', async (req, res) => {
 
     console.log('Where clause:', JSON.stringify(where, null, 2));
 
-    // Fetch records
     let records = await prisma.familyRecord.findMany({
       where,
       orderBy: { id: 'desc' }
@@ -490,7 +482,6 @@ app.get('/search', async (req, res) => {
 
     console.log(`Found ${records.length} records before age filter`);
 
-    // Filter by age if provided (calculated field)
     if (minAge || maxAge) {
       records = records.filter(record => {
         if (!record.dateOfBirth) return false;
@@ -518,9 +509,6 @@ app.get('/search', async (req, res) => {
 });
 
 // ✅ GET - Export all data as backup (JSON format)
-const fs = require('fs');
-
-// ✅ Export backup (download as JSON)
 app.get('/backup/export', async (req, res) => {
   try {
     const records = await prisma.familyRecord.findMany({
@@ -542,71 +530,6 @@ app.get('/backup/export', async (req, res) => {
   }
 });
 
-// ✅ Restore backup (upload JSON file)
-app.post('/backup/restore', backupUpload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No backup file uploaded' });
-    }
-
-    const fileContent = fs.readFileSync(req.file.path, 'utf-8');
-    const backupData = JSON.parse(fileContent);
-
-    if (!backupData.data || !Array.isArray(backupData.data)) {
-      return res.status(400).json({ error: 'Invalid backup file format' });
-    }
-
-    console.log(`Restoring ${backupData.data.length} records from backup...`);
-
-    let restoredCount = 0;
-    let skippedCount = 0;
-    let errorCount = 0;
-
-    for (const record of backupData.data) {
-      try {
-        const { id, ...recordData } = record;
-        const existing = await prisma.familyRecord.findFirst({
-          where: {
-            mandalName: recordData.mandalName,
-            villageName: recordData.villageName,
-            name: recordData.name,
-            phoneNumber: recordData.phoneNumber
-          }
-        });
-
-        if (existing) {
-          skippedCount++;
-          continue;
-        }
-
-        if (recordData.dateOfBirth) {
-          recordData.dateOfBirth = new Date(recordData.dateOfBirth);
-        }
-
-        await prisma.familyRecord.create({ data: recordData });
-        restoredCount++;
-      } catch (error) {
-        errorCount++;
-        console.error('Error restoring record:', error.message);
-      }
-    }
-
-    fs.unlinkSync(req.file.path);
-
-    res.json({
-      message: 'Backup restore completed successfully.',
-      totalInBackup: backupData.data.length,
-      restoredRecords: restoredCount,
-      skippedDuplicates: skippedCount,
-      errors: errorCount
-    });
-
-  } catch (error) {
-    console.error('Error restoring backup:', error);
-    res.status(500).json({ error: 'Failed to restore backup.', details: error.message });
-  }
-});
-
 // ✅ POST - Restore data from backup
 app.post('/backup/restore', upload.single('file'), async (req, res) => {
   try {
@@ -622,21 +545,14 @@ app.post('/backup/restore', upload.single('file'), async (req, res) => {
 
     console.log(`Restoring ${backupData.data.length} records from backup...`);
 
-    // Option 1: Clear existing data and restore (DESTRUCTIVE)
-    // Uncomment if you want to replace all data
-    // await prisma.familyRecord.deleteMany({});
-
-    // Option 2: Restore with duplicate checking (SAFE - default)
     let restoredCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
 
     for (const record of backupData.data) {
       try {
-        // Remove the 'id' field to let Prisma auto-generate new IDs
         const { id, ...recordData } = record;
 
-        // Check if record already exists
         const existing = await prisma.familyRecord.findFirst({
           where: {
             mandalName: recordData.mandalName,
@@ -651,7 +567,6 @@ app.post('/backup/restore', upload.single('file'), async (req, res) => {
           continue;
         }
 
-        // Convert date strings back to Date objects
         if (recordData.dateOfBirth) {
           recordData.dateOfBirth = new Date(recordData.dateOfBirth);
         }
@@ -688,7 +603,6 @@ app.delete('/backup/clear-all', async (req, res) => {
   try {
     const { confirmToken } = req.body;
 
-    // Safety check - require confirmation token
     if (confirmToken !== 'DELETE_ALL_DATA') {
       return res.status(400).json({ 
         error: 'Invalid confirmation token',
@@ -735,80 +649,6 @@ app.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-
-// ✅ Export backup (download as JSON)
-app.get('/backup/export', async (req, res) => {
-  try {
-    const records = await prisma.familyRecord.findMany();
-    const backupData = {
-      timestamp: new Date().toISOString(),
-      totalRecords: records.length,
-      data: records
-    };
-
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename=smart-village-backup.json');
-    res.send(JSON.stringify(backupData, null, 2));
-  } catch (error) {
-    console.error('Error exporting backup:', error);
-    res.status(500).json({ error: 'Failed to export backup.' });
-  }
-});
-
-// ✅ Restore backup (upload JSON file)
-app.post('/backup/restore', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    const filePath = req.file.path;
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const backupData = JSON.parse(fileContent);
-
-    let restoredRecords = 0;
-    let skippedDuplicates = 0;
-    let errors = 0;
-
-    for (const record of backupData.data) {
-      try {
-        // Check if same record exists (based on name + phoneNumber)
-        const existing = await prisma.familyRecord.findFirst({
-          where: {
-            name: record.name,
-            phoneNumber: record.phoneNumber,
-          },
-        });
-
-        if (existing) {
-          skippedDuplicates++;
-          continue;
-        }
-
-        await prisma.familyRecord.create({ data: record });
-        restoredRecords++;
-      } catch (err) {
-        console.error('Error restoring record:', err);
-        errors++;
-      }
-    }
-
-    // Clean up temp file
-    fs.unlinkSync(filePath);
-
-    res.json({
-      message: 'Backup restore completed successfully.',
-      totalInBackup: backupData.data.length,
-      restoredRecords,
-      skippedDuplicates,
-      errors,
-    });
-  } catch (error) {
-    console.error('Error restoring backup:', error);
-    res.status(500).json({ error: 'Failed to restore backup.' });
   }
 });
 
