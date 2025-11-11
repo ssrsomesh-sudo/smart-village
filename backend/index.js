@@ -102,6 +102,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Excel file is empty' });
     }
 
+    // Log the columns found in the Excel file
+    const sampleRow = rawData[0];
+    const columnNames = Object.keys(sampleRow);
+    console.log('Excel columns found:', columnNames);
+
     console.log(`Found ${rawData.length} records in Excel file`);
 
     // Transform data to match Prisma schema
