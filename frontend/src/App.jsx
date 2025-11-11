@@ -5,6 +5,7 @@ import Residents from "./components/Residents";
 import Settings from "./components/Settings";
 import SearchFilter from "./components/SearchFilter";
 import BackupRestore from "./components/BackupRestore";
+import UpcomingBirthdays from "./components/UpcomingBirthdays";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -15,6 +16,8 @@ function App() {
         return <Dashboard />;
       case "residents":
         return <Residents />;
+      case "birthdays":
+        return <UpcomingBirthdays />;
       case "search":
         return <SearchFilter />;
       case "backup":
@@ -32,6 +35,8 @@ function App() {
         return "📊 Dashboard Overview";
       case "residents":
         return "👥 Residents Management";
+      case "birthdays":
+        return "🎂 Upcoming Birthdays";
       case "search":
         return "🔍 Advanced Search & Filter";
       case "backup":

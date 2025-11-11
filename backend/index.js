@@ -322,6 +322,66 @@ app.get('/birthdays/week', async (req, res) => {
   }
 });
 
+// ✅ GET - Get upcoming birthdays (next 30 days)
+app.get('/birthdays/upcoming', async (req, res) => {
+  try {
+    const allRecords = await prisma.familyRecord.findMany({
+      where: {
+        dateOfBirth: { not: null }
+      }
+    });
+
+    const today = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+    const upcomingBirthdays = allRecords.filter(record => {
+      if (!record.dateOfBirth) return false;
+
+      const dob = new Date(record.dateOfBirth);
+      const thisYearBirthday = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+      const nextYearBirthday = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+
+      // Check if birthday falls within next 30 days (this year or next year)
+      const isUpcoming = (thisYearBirthday >= today && thisYearBirthday <= thirtyDaysFromNow) ||
+                         (nextYearBirthday >= today && nextYearBirthday <= thirtyDaysFromNow);
+
+      return isUpcoming;
+    });
+
+    // Calculate days until birthday and age for each record
+    const enrichedBirthdays = upcomingBirthdays.map(record => {
+      const dob = new Date(record.dateOfBirth);
+      const thisYearBirthday = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+      const nextYearBirthday = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+      
+      const upcomingBirthday = thisYearBirthday >= today ? thisYearBirthday : nextYearBirthday;
+      const daysUntil = Math.ceil((upcomingBirthday - today) / (1000 * 60 * 60 * 24));
+      
+      // Calculate age they'll turn
+      let age = today.getFullYear() - dob.getFullYear();
+      if (upcomingBirthday.getFullYear() > today.getFullYear()) {
+        age++;
+      }
+
+      return {
+        ...record,
+        daysUntilBirthday: daysUntil,
+        upcomingAge: age,
+        birthdayDate: upcomingBirthday.toISOString().split('T')[0]
+      };
+    });
+
+    // Sort by days until birthday (closest first)
+    enrichedBirthdays.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
+
+    res.json(enrichedBirthdays);
+  } catch (error) {
+    console.error('Error fetching upcoming birthdays:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ✅ POST - Create new record
 app.post('/records', async (req, res) => {
   try {

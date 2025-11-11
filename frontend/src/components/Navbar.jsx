@@ -2,6 +2,7 @@ const Navbar = ({ currentPage, onPageChange }) => {
   const menuItems = [
     { id: "dashboard", label: "📊 Dashboard", icon: "📊" },
     { id: "residents", label: "👥 Residents", icon: "👥" },
+    { id: "birthdays", label: "👥 Birthdays", icon: "👥" },
     { id: "search", label: "🔍 Search", icon: "🔍" },
     { id: "backup", label: "💾 Backup", icon: "💾" },
     { id: "settings", label: "⚙️ Settings", icon: "⚙️" },
