@@ -3,6 +3,8 @@ import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import Residents from "./components/Residents";
 import Settings from "./components/Settings";
+import SearchFilter from "./components/SearchFilter";
+import BackupRestore from "./components/BackupRestore";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -13,6 +15,10 @@ function App() {
         return <Dashboard />;
       case "residents":
         return <Residents />;
+      case "search":
+        return <SearchFilter />;
+      case "backup":
+        return <BackupRestore />;
       case "settings":
         return <Settings />;
       default:
@@ -26,6 +32,10 @@ function App() {
         return "📊 Dashboard Overview";
       case "residents":
         return "👥 Residents Management";
+      case "search":
+        return "🔍 Advanced Search & Filter";
+      case "backup":
+        return "💾 Backup & Restore";
       case "settings":
         return "⚙️ System Settings";
       default:

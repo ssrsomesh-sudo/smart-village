@@ -109,45 +109,83 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     console.log(`Found ${rawData.length} records in Excel file`);
 
-    // Transform data to match Prisma schema
+    // Helper function to get value from row with multiple possible column names
+    const getColumnValue = (row, possibleNames) => {
+      for (const name of possibleNames) {
+        if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+          return row[name];
+        }
+      }
+      return null;
+    };
+
+    // Transform data to match Prisma schema with flexible column matching
     const transformedData = rawData.map((row) => {
-      const dateOfBirth = parseExcelDate(row['DATE OF BIRTH']);
+      const dateOfBirth = parseExcelDate(
+        getColumnValue(row, ['DATE OF BIRTH', 'Date of Birth', 'DOB', 'dateOfBirth'])
+      );
       
       return {
-        mandalName: String(row['MANADAL NAME'] || row['MANDAL NAME'] || '').trim(),
-        villageName: String(row['VILLAGE NAME'] || '').trim(),
-        rationCard: row['RATION CARD'] ? String(row['RATION CARD']) : null,
-        voterCard: row['VOTER CARD'] ? String(row['VOTER CARD']) : null,
-        name: String(row['NAME'] || '').trim(),
-        numFamilyPersons: parseInt(row['NUMBER OF FAMILY PERSONS']) || 0,
-        address: String(row['ADDRESS'] || '').trim(),
-        phoneNumber: String(row['PHONE NUMBER'] || '').trim(),
-        aadhar: row['AADHAR'] ? String(row['AADHAR']) : null,
-        gender: row['GENDER'] ? String(row['GENDER']).trim() : null,
+        mandalName: String(getColumnValue(row, ['MANADAL NAME', 'MANDAL NAME', 'Mandal Name', 'mandalName']) || '').trim(),
+        villageName: String(getColumnValue(row, ['VILLAGE NAME', 'Village Name', 'villageName']) || '').trim(),
+        rationCard: getColumnValue(row, ['RATION CARD', 'Ration Card', 'rationCard']) ? String(getColumnValue(row, ['RATION CARD', 'Ration Card', 'rationCard'])) : null,
+        voterCard: getColumnValue(row, ['VOTER CARD', 'Voter Card', 'voterCard']) ? String(getColumnValue(row, ['VOTER CARD', 'Voter Card', 'voterCard'])) : null,
+        name: String(getColumnValue(row, ['NAME', 'Name', 'name', 'Member Name', 'MEMBER NAME']) || '').trim(),
+        numFamilyPersons: parseInt(getColumnValue(row, ['NUMBER OF FAMILY PERSONS', 'Number of Family Persons', 'numFamilyPersons', 'Family Members'])) || 0,
+        address: String(getColumnValue(row, ['ADDRESS', 'Address', 'address']) || '').trim(),
+        phoneNumber: String(getColumnValue(row, ['PHONE NUMBER', 'Phone Number', 'phoneNumber', 'Mobile Number', 'MOBILE NUMBER']) || '').trim(),
+        aadhar: getColumnValue(row, ['AADHAR', 'Aadhar', 'aadhar', 'Aadhar Number', 'AADHAR NUMBER']) ? String(getColumnValue(row, ['AADHAR', 'Aadhar', 'aadhar', 'Aadhar Number', 'AADHAR NUMBER'])) : null,
+        gender: getColumnValue(row, ['GENDER', 'Gender', 'gender']) ? String(getColumnValue(row, ['GENDER', 'Gender', 'gender'])).trim() : null,
         dateOfBirth: dateOfBirth,
-        qualification: row['QUALIFICATION'] ? String(row['QUALIFICATION']).trim() : null,
-        caste: row['Caste'] ? String(row['Caste']).trim() : null,
-        subCaste: row['Sub Caste'] ? String(row['Sub Caste']).trim() : null,
-        occupation: row['OCCUPATION'] ? String(row['OCCUPATION']).trim() : null,
-        needEmployment: row['NEED ANY EMPLOYEEMENT'] ? String(row['NEED ANY EMPLOYEEMENT']).trim() : null,
-        arogyasriCardNumber: row['AROGYASRI CARD NUMBER'] ? String(row['AROGYASRI CARD NUMBER']).trim() : null,
-        shgMember: row['SHG MEMBER'] ? String(row['SHG MEMBER']).trim() : null,
-        schemesEligible: row['SCHEMES ELIGIBLE FOR'] ? String(row['SCHEMES ELIGIBLE FOR']).trim() : null,
+        qualification: getColumnValue(row, ['QUALIFICATION', 'Qualification', 'qualification']) ? String(getColumnValue(row, ['QUALIFICATION', 'Qualification', 'qualification'])).trim() : null,
+        caste: getColumnValue(row, ['Caste', 'CASTE', 'caste']) ? String(getColumnValue(row, ['Caste', 'CASTE', 'caste'])).trim() : null,
+        subCaste: getColumnValue(row, ['Sub Caste', 'SUB CASTE', 'subCaste', 'Sub-Caste']) ? String(getColumnValue(row, ['Sub Caste', 'SUB CASTE', 'subCaste', 'Sub-Caste'])).trim() : null,
+        occupation: getColumnValue(row, ['OCCUPATION', 'Occupation', 'occupation']) ? String(getColumnValue(row, ['OCCUPATION', 'Occupation', 'occupation'])).trim() : null,
+        needEmployment: getColumnValue(row, ['NEED ANY EMPLOYEEMENT', 'Need Employment', 'needEmployment']) ? String(getColumnValue(row, ['NEED ANY EMPLOYEEMENT', 'Need Employment', 'needEmployment'])).trim() : null,
+        arogyasriCardNumber: getColumnValue(row, ['AROGYASRI CARD NUMBER', 'Arogyasri Card Number', 'arogyasriCardNumber']) ? String(getColumnValue(row, ['AROGYASRI CARD NUMBER', 'Arogyasri Card Number', 'arogyasriCardNumber'])).trim() : null,
+        shgMember: getColumnValue(row, ['SHG MEMBER', 'SHG Member', 'shgMember']) ? String(getColumnValue(row, ['SHG MEMBER', 'SHG Member', 'shgMember'])).trim() : null,
+        schemesEligible: getColumnValue(row, ['SCHEMES ELIGIBLE FOR', 'Schemes Eligible', 'schemesEligible']) ? String(getColumnValue(row, ['SCHEMES ELIGIBLE FOR', 'Schemes Eligible', 'schemesEligible'])).trim() : null,
         remarks: null,
         birthdayThisWeek: dateOfBirth ? isBirthdayThisWeek(dateOfBirth) : false,
         birthdayThisMonth: dateOfBirth ? isBirthdayThisMonth(dateOfBirth) : false,
       };
     });
 
-    // Validate required fields
-    const validData = transformedData.filter((record) => {
-      return record.mandalName && record.villageName && record.name && record.address && record.phoneNumber;
+    // Validate required fields and log issues
+    const validData = [];
+    const invalidData = [];
+    
+    transformedData.forEach((record, index) => {
+      if (!record.mandalName || !record.villageName || !record.name || !record.address || !record.phoneNumber) {
+        invalidData.push({
+          row: index + 2,
+          missing: {
+            mandalName: !record.mandalName,
+            villageName: !record.villageName,
+            name: !record.name,
+            address: !record.address,
+            phoneNumber: !record.phoneNumber
+          }
+        });
+      } else {
+        validData.push(record);
+      }
     });
 
     console.log(`Validated ${validData.length} records out of ${transformedData.length}`);
+    
+    if (invalidData.length > 0) {
+      console.log('Invalid records:', JSON.stringify(invalidData.slice(0, 5)));
+    }
 
     if (validData.length === 0) {
-      return res.status(400).json({ error: 'No valid records found in Excel file' });
+      return res.status(400).json({ 
+        error: 'No valid records found in Excel file',
+        details: `All ${transformedData.length} records are missing required fields`,
+        columnsFound: columnNames,
+        sampleInvalidRecord: invalidData[0],
+        requiredFields: ['Mandal Name', 'Village Name', 'Name', 'Address', 'Phone Number']
+      });
     }
 
     // Import records with duplicate checking
@@ -382,6 +420,205 @@ app.delete('/records/:id', async (req, res) => {
     res.json({ message: 'Record deleted successfully', id });
   } catch (error) {
     console.error('Error deleting record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ GET - Advanced search with multiple criteria
+app.get('/search', async (req, res) => {
+  try {
+    const {
+      name,
+      mandalName,
+      villageName,
+      phoneNumber,
+      gender,
+      minAge,
+      maxAge,
+      qualification,
+      occupation,
+      caste
+    } = req.query;
+
+    // Build dynamic where clause
+    const where = {};
+
+    if (name) {
+      where.name = { contains: name, mode: 'insensitive' };
+    }
+    if (mandalName) {
+      where.mandalName = mandalName;
+    }
+    if (villageName) {
+      where.villageName = villageName;
+    }
+    if (phoneNumber) {
+      where.phoneNumber = { contains: phoneNumber };
+    }
+    if (gender) {
+      where.gender = gender;
+    }
+    if (qualification) {
+      where.qualification = { contains: qualification, mode: 'insensitive' };
+    }
+    if (occupation) {
+      where.occupation = { contains: occupation, mode: 'insensitive' };
+    }
+    if (caste) {
+      where.caste = { contains: caste, mode: 'insensitive' };
+    }
+
+    // Fetch records
+    let records = await prisma.familyRecord.findMany({
+      where,
+      orderBy: { id: 'desc' }
+    });
+
+    // Filter by age if provided (calculated field)
+    if (minAge || maxAge) {
+      records = records.filter(record => {
+        if (!record.dateOfBirth) return false;
+        
+        const today = new Date();
+        const birthDate = new Date(record.dateOfBirth);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+
+        if (minAge && age < parseInt(minAge)) return false;
+        if (maxAge && age > parseInt(maxAge)) return false;
+        return true;
+      });
+    }
+
+    res.json(records);
+  } catch (error) {
+    console.error('Error searching records:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ GET - Export all data as backup (JSON format)
+app.get('/backup/export', async (req, res) => {
+  try {
+    const records = await prisma.familyRecord.findMany({
+      orderBy: { id: 'asc' }
+    });
+
+    const backup = {
+      exportDate: new Date().toISOString(),
+      totalRecords: records.length,
+      data: records
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=smart-village-backup-${Date.now()}.json`);
+    res.json(backup);
+  } catch (error) {
+    console.error('Error exporting backup:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ POST - Restore data from backup
+app.post('/backup/restore', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No backup file uploaded' });
+    }
+
+    const backupData = JSON.parse(req.file.buffer.toString('utf8'));
+
+    if (!backupData.data || !Array.isArray(backupData.data)) {
+      return res.status(400).json({ error: 'Invalid backup file format' });
+    }
+
+    console.log(`Restoring ${backupData.data.length} records from backup...`);
+
+    // Option 1: Clear existing data and restore (DESTRUCTIVE)
+    // Uncomment if you want to replace all data
+    // await prisma.familyRecord.deleteMany({});
+
+    // Option 2: Restore with duplicate checking (SAFE - default)
+    let restoredCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    for (const record of backupData.data) {
+      try {
+        // Remove the 'id' field to let Prisma auto-generate new IDs
+        const { id, ...recordData } = record;
+
+        // Check if record already exists
+        const existing = await prisma.familyRecord.findFirst({
+          where: {
+            mandalName: recordData.mandalName,
+            villageName: recordData.villageName,
+            name: recordData.name,
+            phoneNumber: recordData.phoneNumber
+          }
+        });
+
+        if (existing) {
+          skippedCount++;
+          continue;
+        }
+
+        // Convert date strings back to Date objects
+        if (recordData.dateOfBirth) {
+          recordData.dateOfBirth = new Date(recordData.dateOfBirth);
+        }
+
+        await prisma.familyRecord.create({
+          data: recordData
+        });
+        restoredCount++;
+      } catch (error) {
+        errorCount++;
+        console.error(`Error restoring record:`, error.message);
+      }
+    }
+
+    res.json({
+      message: 'Backup restored successfully',
+      restoredRecords: restoredCount,
+      skippedDuplicates: skippedCount,
+      errors: errorCount,
+      totalInBackup: backupData.data.length
+    });
+
+  } catch (error) {
+    console.error('Error restoring backup:', error);
+    res.status(500).json({ 
+      error: 'Failed to restore backup',
+      details: error.message 
+    });
+  }
+});
+
+// ✅ DELETE - Clear all data (use with caution!)
+app.delete('/backup/clear-all', async (req, res) => {
+  try {
+    const { confirmToken } = req.body;
+
+    // Safety check - require confirmation token
+    if (confirmToken !== 'DELETE_ALL_DATA') {
+      return res.status(400).json({ 
+        error: 'Invalid confirmation token',
+        message: 'Send {"confirmToken": "DELETE_ALL_DATA"} to confirm deletion'
+      });
+    }
+
+    const result = await prisma.familyRecord.deleteMany({});
+    
+    res.json({ 
+      message: 'All records deleted successfully',
+      deletedCount: result.count 
+    });
+  } catch (error) {
+    console.error('Error clearing data:', error);
     res.status(500).json({ error: error.message });
   }
 });
