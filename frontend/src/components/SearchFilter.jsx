@@ -18,6 +18,7 @@ const SearchFilter = () => {
   const [loading, setLoading] = useState(false);
   const [mandals, setMandals] = useState([]);
   const [villages, setVillages] = useState([]);
+  const [qualifications, setQualifications] = useState([]);
 
   const API_URL = 'https://smart-village-cn6f.onrender.com';
 
@@ -33,9 +34,13 @@ const SearchFilter = () => {
       
       const uniqueMandals = [...new Set(data.map(r => r.mandalName).filter(Boolean))];
       const uniqueVillages = [...new Set(data.map(r => r.villageName).filter(Boolean))];
+      const uniqueQualifications = [...new Set(data.map(r => r.qualification).filter(Boolean))];
       
       setMandals(uniqueMandals.sort());
       setVillages(uniqueVillages.sort());
+      setQualifications(uniqueQualifications.sort());
+      
+      console.log('Available qualifications in database:', uniqueQualifications);
     } catch (error) {
       console.error('Error fetching filters:', error);
     }
@@ -60,9 +65,20 @@ const SearchFilter = () => {
         }
       });
 
+      console.log('Searching with params:', params.toString());
+
       const response = await fetch(`${API_URL}/search?${params.toString()}`);
       const data = await response.json();
+      
+      console.log('Search results:', data);
       setResults(data);
+
+      if (data.length === 0) {
+        alert(`No records found for the given criteria. 
+
+Search parameters used:
+${Array.from(params.entries()).map(([key, val]) => `${key}: ${val}`).join('\n')}`);
+      }
     } catch (error) {
       console.error('Error searching:', error);
       alert('Search failed. Please try again.');
@@ -209,14 +225,25 @@ const SearchFilter = () => {
             {/* Qualification */}
             <div className="col-md-4">
               <label className="form-label">Qualification</label>
-              <input
-                type="text"
-                className="form-control"
+              <select
+                className="form-select"
                 name="qualification"
                 value={searchCriteria.qualification}
                 onChange={handleInputChange}
-                placeholder="Search by qualification..."
-              />
+              >
+                <option value="">All Qualifications</option>
+                {qualifications.map(qual => (
+                  <option key={qual} value={qual}>{qual}</option>
+                ))}
+              </select>
+              <small className="text-muted">
+                Or type to search: <input 
+                  type="text" 
+                  className="form-control form-control-sm mt-1" 
+                  placeholder="Type qualification..."
+                  onChange={(e) => handleInputChange({ target: { name: 'qualification', value: e.target.value }})}
+                />
+              </small>
             </div>
 
             {/* Occupation */}

@@ -440,6 +440,8 @@ app.get('/search', async (req, res) => {
       caste
     } = req.query;
 
+    console.log('Search params:', req.query);
+
     // Build dynamic where clause
     const where = {};
 
@@ -468,11 +470,15 @@ app.get('/search', async (req, res) => {
       where.caste = { contains: caste, mode: 'insensitive' };
     }
 
+    console.log('Where clause:', JSON.stringify(where, null, 2));
+
     // Fetch records
     let records = await prisma.familyRecord.findMany({
       where,
       orderBy: { id: 'desc' }
     });
+
+    console.log(`Found ${records.length} records before age filter`);
 
     // Filter by age if provided (calculated field)
     if (minAge || maxAge) {
@@ -493,6 +499,7 @@ app.get('/search', async (req, res) => {
       });
     }
 
+    console.log(`Returning ${records.length} records after age filter`);
     res.json(records);
   } catch (error) {
     console.error('Error searching records:', error);
