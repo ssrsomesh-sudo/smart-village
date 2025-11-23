@@ -567,7 +567,77 @@ app.get('/search', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+app.get('/download-template', (req, res) => {
+  try {
+    // Create a sample data row with correct column headers
+    const templateData = [
+      {
+        'MANDAL NAME': 'Example Mandal',
+        'VILLAGE NAME': 'Example Village',
+        'RATION CARD': 'RC123456',
+        'VOTER CARD': 'VC123456',
+        'NAME': 'John Doe',
+        'NUMBER OF FAMILY PERSONS': 4,
+        'ADDRESS': '123 Main Street',
+        'PHONE NUMBER': '9876543210',
+        'AADHAR': '123456789012',
+        'GENDER': 'Male',
+        'DATE OF BIRTH': '01-01-1980',
+        'QUALIFICATION': 'Graduate',
+        'Caste': 'OC',
+        'Sub Caste': 'Example',
+        'OCCUPATION': 'Farmer',
+        'NEED ANY EMPLOYEEMENT': 'No',
+        'AROGYASRI CARD NUMBER': 'AC123456',
+        'SHG MEMBER': 'Yes',
+        'SCHEMES ELIGIBLE FOR': 'PM-KISAN',
+        'REMARKS': 'Sample remarks'
+      }
+    ];
 
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Family Records');
+
+    // Set column widths for better readability
+    const columnWidths = [
+      { wch: 15 }, // MANDAL NAME
+      { wch: 15 }, // VILLAGE NAME
+      { wch: 12 }, // RATION CARD
+      { wch: 12 }, // VOTER CARD
+      { wch: 20 }, // NAME
+      { wch: 25 }, // NUMBER OF FAMILY PERSONS
+      { wch: 30 }, // ADDRESS
+      { wch: 15 }, // PHONE NUMBER
+      { wch: 15 }, // AADHAR
+      { wch: 10 }, // GENDER
+      { wch: 15 }, // DATE OF BIRTH
+      { wch: 15 }, // QUALIFICATION
+      { wch: 10 }, // Caste
+      { wch: 15 }, // Sub Caste
+      { wch: 15 }, // OCCUPATION
+      { wch: 20 }, // NEED ANY EMPLOYEEMENT
+      { wch: 20 }, // AROGYASRI CARD NUMBER
+      { wch: 15 }, // SHG MEMBER
+      { wch: 25 }, // SCHEMES ELIGIBLE FOR
+      { wch: 20 }  // REMARKS
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=Smart-Village-Template.xlsx');
+    
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error generating template:', error);
+    res.status(500).json({ error: 'Failed to generate template file' });
+  }
+});
 // ✅ GET - Export all data as backup (JSON format)
 app.get('/backup/export', async (req, res) => {
   try {
