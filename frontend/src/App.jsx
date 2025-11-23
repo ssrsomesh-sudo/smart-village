@@ -7,6 +7,7 @@ import SearchFilter from "./components/SearchFilter";
 import BackupRestore from "./components/BackupRestore";
 import UpcomingBirthdays from "./components/UpcomingBirthdays";
 import DeleteVillageRecords from "./components/DeleteVillageRecords";
+import DateTimeBar from "./components/DateTimeBar";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -56,7 +57,10 @@ function App() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
       <Navbar currentPage={currentPage} onPageChange={setCurrentPage} />
-      
+    
+      {/* 👇 Add this line to show date & time on every page */}
+      <DateTimeBar />
+
       <div className="container-fluid py-4">
         <div className="mb-4">
           <h2 className="display-6 fw-bold text-success">
