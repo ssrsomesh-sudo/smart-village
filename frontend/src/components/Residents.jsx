@@ -22,6 +22,31 @@ function Residents() {
   const [villages, setVillages] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // 🆕 Date formatter function - DD/MM/YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Calculate age from date of birth
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return 'N/A';
+    const today = new Date();
+    const birth = new Date(dateOfBirth);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const API_URL = "https://smart-village-cn6f.onrender.com";
+
   useEffect(() => {
     loadRecords();
   }, []);
@@ -29,7 +54,7 @@ function Residents() {
   const loadRecords = async () => {
     try {
       setLoading(true);
-      const res = await fetch("https://smart-village-cn6f.onrender.com/records");
+      const res = await fetch(`${API_URL}/records`);
       const data = await res.json();
       setRecords(data);
       setFilteredRecords(data);
@@ -69,7 +94,7 @@ function Residents() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("💾 Saving...");
-  const API_URL = "https://smart-village-cn6f.onrender.com";
+
     try {
       const url = editingId 
         ? `${API_URL}/records/${editingId}`
@@ -132,26 +157,26 @@ function Residents() {
     setEditingId(null);
   };
 
- const handleDelete = async (id, name) => {
-  if (!window.confirm(`Delete record for "${name}"?`)) return;
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Delete record for "${name}"?`)) return;
 
-  try {
-    const response = await fetch(`${API_URL}/records/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      const response = await fetch(`${API_URL}/records/${id}`, {
+        method: "DELETE",
+      });
 
-    if (response.ok) {
-      setMessage("✅ Record deleted!");
-      loadRecords();
-      setTimeout(() => setMessage(""), 3000);
-    } else {
-      setMessage("❌ Failed to delete record.");
+      if (response.ok) {
+        setMessage("✅ Record deleted!");
+        loadRecords();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("❌ Failed to delete record.");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      setMessage("⚠️ Cannot connect to backend.");
     }
-  } catch (err) {
-    console.error("Delete error:", err);
-    setMessage("⚠️ Cannot connect to backend.");
-  }
-};
+  };
 
   const resetFilters = () => {
     setSelectedMandal("");
@@ -296,7 +321,7 @@ function Residents() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table - 🆕 Added Date of Birth and Age columns */}
       <div className="card shadow-sm">
         <div className="card-header bg-primary text-white">
           <h5 className="mb-0">
@@ -317,6 +342,8 @@ function Residents() {
                   <th>Name of the Person</th>
                   <th>Members</th>
                   <th>Gender</th>
+                  <th>DOB</th>
+                  <th>Age</th>
                   <th>Phone</th>
                   <th>Address</th>
                   <th>Actions</th>
@@ -331,6 +358,8 @@ function Residents() {
                     <td>{r.name}</td>
                     <td><span className="badge bg-info">{r.numFamilyPersons}</span></td>
                     <td>{r.gender}</td>
+                    <td>{formatDate(r.dateOfBirth)}</td>
+                    <td>{calculateAge(r.dateOfBirth)}</td>
                     <td>{r.phoneNumber}</td>
                     <td>{r.address || "-"}</td>
                     <td>
@@ -343,7 +372,7 @@ function Residents() {
                 ))}
                 {filteredRecords.length === 0 && (
                   <tr>
-                    <td colSpan="9" className="text-center text-muted py-4">
+                    <td colSpan="11" className="text-center text-muted py-4">
                       No residents found
                     </td>
                   </tr>

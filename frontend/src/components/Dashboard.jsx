@@ -11,6 +11,16 @@ function Dashboard() {
   const [selectedVillage, setSelectedVillage] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // 🆕 Date formatter function - DD/MM/YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   // Load records
   useEffect(() => {
     loadRecords();
@@ -302,7 +312,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Upcoming Birthdays */}
+      {/* Upcoming Birthdays - 🆕 UPDATED WITH DD/MM/YYYY FORMAT */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="card shadow-sm">
@@ -327,7 +337,7 @@ function Dashboard() {
                         <tr key={r.id}>
                           <td>{r.name}</td>
                           <td>{r.villageName}</td>
-                          <td>{new Date(r.dateOfBirth).toLocaleDateString()}</td>
+                          <td>{formatDate(r.dateOfBirth)}</td>
                           <td>{calculateAge(r.dateOfBirth)} years</td>
                           <td>{r.phoneNumber}</td>
                         </tr>

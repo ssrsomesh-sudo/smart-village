@@ -682,6 +682,43 @@ app.delete('/backup/clear-all', async (req, res) => {
   }
 });
 
+// ✅ DELETE - Delete all records from a specific village
+app.delete('/delete-village/:villageName', async (req, res) => {
+  try {
+    const villageName = decodeURIComponent(req.params.villageName);
+
+    console.log(`DELETE request for village: ${villageName}`);
+
+    // Count records first
+    const count = await prisma.familyRecord.count({
+      where: { villageName: villageName }
+    });
+
+    if (count === 0) {
+      return res.status(404).json({ 
+        error: 'No records found for this village',
+        villageName: villageName 
+      });
+    }
+
+    // Delete all records from this village
+    const result = await prisma.familyRecord.deleteMany({
+      where: { villageName: villageName }
+    });
+
+    console.log(`Deleted ${result.count} records from ${villageName}`);
+    
+    res.json({ 
+      message: `Successfully deleted all records from ${villageName}`,
+      villageName: villageName,
+      deletedCount: result.count
+    });
+  } catch (error) {
+    console.error('Error deleting village records:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ✅ GET - Get statistics
 app.get('/stats', async (req, res) => {
   try {

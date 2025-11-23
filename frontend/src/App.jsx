@@ -6,6 +6,7 @@ import Settings from "./components/Settings";
 import SearchFilter from "./components/SearchFilter";
 import BackupRestore from "./components/BackupRestore";
 import UpcomingBirthdays from "./components/UpcomingBirthdays";
+import DeleteVillageRecords from "./components/DeleteVillageRecords";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -20,6 +21,8 @@ function App() {
         return <UpcomingBirthdays />;
       case "search":
         return <SearchFilter />;
+      case "delete-village":
+        return <DeleteVillageRecords />;
       case "backup":
         return <BackupRestore />;
       case "settings":
@@ -39,6 +42,8 @@ function App() {
         return "🎂 Upcoming Birthdays";
       case "search":
         return "🔍 Advanced Search & Filter";
+      case "delete-village":
+        return "🗑️ Delete Village Records";
       case "backup":
         return "💾 Backup & Restore";
       case "settings":

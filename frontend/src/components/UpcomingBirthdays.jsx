@@ -31,10 +31,10 @@ const UpcomingBirthdays = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric'
-    });
+    const day = date.getDate();
+    const month = date.toLocaleDateString('en-US', { month: 'long' });
+    const year = date.getFullYear();
+    return `${day}, ${month} ${year}`;
   };
 
   const getDaysText = (days) => {
