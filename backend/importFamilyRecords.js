@@ -94,7 +94,7 @@ async function importFamilyRecords(excelFilePath) {
       const dateOfBirth = parseExcelDate(row['DATE OF BIRTH']);
       
       return {
-        mandalName: String(row['MANADAL NAME'] || '').trim(),
+        mandalName: String(row['MANDAL NAME'] || '').trim(),
         villageName: String(row['VILLAGE NAME'] || '').trim(),
         rationCard: row['RATION CARD'] ? String(row['RATION CARD']) : null,
         voterCard: row['VOTER CARD'] ? String(row['VOTER CARD']) : null,
@@ -228,7 +228,7 @@ async function importFamilyRecords(excelFilePath) {
 }
 
 // Update this path to your Excel file
-const excelFilePath = './P.KONDAPURAM.xlsx';
+const excelFilePath = './kottalapalli1.xlsx';
 
 console.log('='.repeat(60));
 console.log('   FAMILY RECORDS IMPORT TOOL (WITH DUPLICATE CHECK)');

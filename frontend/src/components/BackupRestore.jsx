@@ -222,6 +222,35 @@ const BackupRestore = () => {
         </div>
       </div>
 
+{/* Download Template Section */}
+<div className="row mb-4">
+  <div className="col-12">
+    <div className="card shadow-sm border-info">
+      <div className="card-header bg-info text-white">
+        <h5 className="mb-0">📥 Excel Upload Template</h5>
+      </div>
+      <div className="card-body">
+        <div className="row align-items-center">
+          <div className="col-md-8">
+            <h6>Need to upload new family records?</h6>
+            <p className="text-muted mb-0">
+              Download our Excel template with all the correct column headers. 
+              This ensures your data uploads successfully without formatting errors.
+            </p>
+          </div>
+          <div className="col-md-4 text-md-end">
+            <button
+              className="btn btn-info btn-lg"
+              onClick={() => window.open(`${API_URL}/download-template`, '_blank')}
+            >
+              📥 Download Template
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
       {/* Status Messages */}
       {message && (
         <div className="alert alert-success" style={{ whiteSpace: 'pre-line' }}>

@@ -89,7 +89,7 @@ async function importWithOptions(excelFilePath) {
       const dateOfBirth = parseExcelDate(row['DATE OF BIRTH']);
       
       return {
-        mandalName: String(row['MANADAL NAME'] || '').trim(),
+        mandalName: String(row['MANDAL NAME'] || '').trim(),
         villageName: String(row['VILLAGE NAME'] || '').trim(),
         rationCard: row['RATION CARD'] ? String(row['RATION CARD']) : null,
         voterCard: row['VOTER CARD'] ? String(row['VOTER CARD']) : null,

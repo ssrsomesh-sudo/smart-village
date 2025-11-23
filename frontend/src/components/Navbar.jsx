@@ -6,6 +6,7 @@ const Navbar = ({ currentPage, onPageChange }) => {
     { id: "search", label: "🔍 Search", icon: "🔍" },
     { id: "delete-village", label: "🗑️ Delete", icon: "🗑️" },
     { id: "backup", label: "💾 Backup", icon: "💾" },
+    { id: "template", label: "📥 Template", icon: "📥" }, // ⭐ ADD THIS
     { id: "settings", label: "⚙️ Settings", icon: "⚙️" },
   ];
 

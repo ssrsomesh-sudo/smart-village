@@ -8,6 +8,7 @@ import BackupRestore from "./components/BackupRestore";
 import UpcomingBirthdays from "./components/UpcomingBirthdays";
 import DeleteVillageRecords from "./components/DeleteVillageRecords";
 import DateTimeBar from "./components/DateTimeBar";
+import TemplateDownload from './components/TemplateDownload'; // ⭐ ADD THIS
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -26,6 +27,8 @@ function App() {
         return <DeleteVillageRecords />;
       case "backup":
         return <BackupRestore />;
+      case "template":  // ⭐ ADD THIS
+        return <TemplateDownload />;
       case "settings":
         return <Settings />;
       default:
@@ -47,6 +50,8 @@ function App() {
         return "🗑️ Delete Village Records";
       case "backup":
         return "💾 Backup & Restore";
+      case "template":  // ⭐ ADD THIS
+        return "📥 Download Excel Template";
       case "settings":
         return "⚙️ System Settings";
       default:
@@ -58,7 +63,6 @@ function App() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
       <Navbar currentPage={currentPage} onPageChange={setCurrentPage} />
     
-      {/* 👇 Add this line to show date & time on every page */}
       <DateTimeBar />
 
       <div className="container-fluid py-4">
@@ -72,7 +76,6 @@ function App() {
         {renderPage()}
       </div>
 
-      {/* Footer */}
       <footer className="bg-dark text-white text-center py-3 mt-5">
         <p className="mb-0">
           © 2025 Smart Village Dashboard | Built with ❤️ for rural development

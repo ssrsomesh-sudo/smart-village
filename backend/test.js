@@ -154,7 +154,7 @@ app.post('/import', upload.single('file'), async (req, res) => {
 
         await prisma.familyRecord.create({
           data: {
-            mandalName: String(row['MANADAL NAME'] || '').trim(),
+            mandalName: String(row['MANDAL NAME'] || '').trim(),
             villageName: String(row['VILLAGE NAME'] || '').trim(),
             name: String(row['NAME'] || '').trim(),
             numFamilyPersons: parseInt(row['NUMBER OF FAMILY PERSONS']) || 0,
