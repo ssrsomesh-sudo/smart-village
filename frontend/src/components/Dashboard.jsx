@@ -63,14 +63,24 @@ function Dashboard() {
     setFilteredRecords(filtered);
   }, [selectedMandal, selectedVillage, records]);
 
-  // Calculate statistics
+  // Calculate statistics - FIXED VERSION
   const stats = {
-    totalFamilies: filteredRecords.length,
+    totalFamilies: filteredRecords.length, // Total records (each person)
     totalPersons: filteredRecords.reduce((sum, r) => sum + (r.numFamilyPersons || 0), 0),
-    male: filteredRecords.filter(r => r.gender === "MALE").length,
-    female: filteredRecords.filter(r => r.gender === "FEMALE").length,
-    uniqueRationCards: new Set(filteredRecords.map(r => r.rationCard).filter(Boolean)).size,
-    uniqueVoterCards: new Set(filteredRecords.map(r => r.voterCard).filter(Boolean)).size,
+    male: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "MALE").length,
+    female: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "FEMALE").length,
+    // Count only non-null, non-empty unique cards
+    uniqueRationCards: new Set(
+      filteredRecords
+        .map(r => r.rationCard)
+        .filter(card => card != null && card !== '' && card !== 'null')
+        .map(card => String(card).trim().toUpperCase()) // Normalize
+    ).size,
+    uniqueVoterCards: new Set(
+      filteredRecords
+        .map(r => r.voterCard)
+        .filter(card => card && card.toString().trim() !== '')
+    ).size,
   };
 
   // Calculate age groups
