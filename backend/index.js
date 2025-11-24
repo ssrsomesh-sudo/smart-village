@@ -13,7 +13,8 @@ const PORT = process.env.PORT || 4000;
 app.use(cors({
   origin: [
     'https://smart-village1.netlify.app',
-    'https://smart-village1.netlify.app/'
+    'https://smart-village1.netlify.app/',
+    'https://smart-village.pages.dev'
   ],
   credentials: true
 }));
