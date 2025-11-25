@@ -69,11 +69,24 @@ function Dashboard() {
     totalPersons: filteredRecords.reduce((sum, r) => sum + (r.numFamilyPersons || 0), 0),
     male: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "MALE").length,
     female: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "FEMALE").length,
-    // Count only non-null, non-empty unique ration cards
+    // Count only valid unique ration cards (exclude NO, NA, NOT FOUND, etc.)
     uniqueRationCards: new Set(
       filteredRecords
         .map(r => r.rationCard)
-        .filter(card => card != null && card !== '' && card !== 'null')
+        .filter(card => {
+          if (!card || card === '' || card === 'null') return false;
+          const cardStr = String(card).trim().toUpperCase();
+          // Exclude invalid entries
+          if (cardStr === 'NO' || 
+              cardStr === 'NOT FOUND' || 
+              cardStr === 'NA' || 
+              cardStr === 'N/A' ||
+              cardStr === 'NULL' ||
+              cardStr === 'NONE') {
+            return false;
+          }
+          return true;
+        })
         .map(card => String(card).trim().toUpperCase())
     ).size,
     // ✅ FIXED: Exclude "BELOW 18 YEARS" and "NOT FOUND" from voter cards count
