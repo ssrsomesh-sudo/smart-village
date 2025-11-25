@@ -8,31 +8,32 @@ const XLSX = require('xlsx');
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
+// 🔥 FIXED GLOBAL CORS — works for Cloudflare Pages, Netlify, localhost
+const allowedOrigins = [
+  "https://smart-village.pages.dev",
+  "https://smart-village1.netlify.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:4173"
+];
 
 // CORS configuration - Allow Netlify, Cloudflare, and Cloudflare preview URLs
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // List of allowed origins
-    const allowedOrigins = [
-      'https://smart-village1.netlify.app',
-      'https://smart-village.pages.dev',
-      'http://localhost:3000',
-      'http://localhost:5173'
-    ];
-    
-    // Check if origin is in allowed list OR is a Cloudflare preview URL
-    if (allowedOrigins.includes(origin) || origin.includes('.smart-village.pages.dev')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);  // mobile apps / curl
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
+
+    return callback(new Error("CORS: Origin not allowed → " + origin));
   },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
-
+// 🔥 REQUIRED: Allow OPTIONS preflight for ALL routes
+app.options("*", cors());
 // Body parser middleware - IMPORTANT for DELETE requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
