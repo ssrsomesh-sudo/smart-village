@@ -3,20 +3,41 @@ import { useState } from 'react';
 const TemplateDownload = () => {
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [error, setError] = useState(null);
   
   const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   const downloadTemplate = async () => {
     try {
       setDownloading(true);
+      setError(null);
       
-      const response = await fetch(`${API_URL}/download-template`);
+      console.log('Requesting template from:', `${API_URL}/download-template`);
+      
+      const response = await fetch(`${API_URL}/download-template`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
       
       if (!response.ok) {
-        throw new Error('Failed to download template');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
       
       const blob = await response.blob();
+      console.log('Blob size:', blob.size, 'bytes');
+      console.log('Blob type:', blob.type);
+      
+      if (blob.size === 0) {
+        throw new Error('Received empty file from server');
+      }
+      
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -24,15 +45,18 @@ const TemplateDownload = () => {
       document.body.appendChild(link);
       link.click();
       
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
       
       setDownloaded(true);
       setTimeout(() => setDownloaded(false), 3000);
       
     } catch (error) {
       console.error('Error downloading template:', error);
-      alert('Failed to download template. Please try again.');
+      setError(error.message || 'Failed to download template. Please try again.');
     } finally {
       setDownloading(false);
     }
@@ -98,7 +122,43 @@ const TemplateDownload = () => {
               {downloaded && (
                 <div className="alert alert-success text-center">
                   <strong>✅ Template downloaded successfully!</strong><br />
-                  Check your downloads folder.
+                  Check your downloads folder for "Smart-Village-Template.xlsx"
+                </div>
+              )}
+
+              {/* Error Message */}
+              {error && (
+                <div className="alert alert-danger text-center">
+                  <strong>❌ Error:</strong><br />
+                  {error}
+                  <br />
+                  <small className="mt-2 d-block">
+                    Please check your internet connection or contact support if the issue persists.
+                  </small>
+                </div>
+              )}
+
+              {/* Debug Info (for development) */}
+              {error && (
+                <div className="mt-3 text-center">
+                  <button 
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => {
+                      console.log('Testing API connection...');
+                      fetch(`${API_URL}/`)
+                        .then(r => r.json())
+                        .then(data => {
+                          console.log('API is reachable:', data);
+                          alert('API is reachable! Check console for details.');
+                        })
+                        .catch(err => {
+                          console.error('API connection failed:', err);
+                          alert('Cannot reach API server. Check console for details.');
+                        });
+                    }}
+                  >
+                    Test API Connection
+                  </button>
                 </div>
               )}
             </div>

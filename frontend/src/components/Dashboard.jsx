@@ -11,7 +11,7 @@ function Dashboard() {
   const [selectedVillage, setSelectedVillage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // 🆕 Date formatter function - DD/MM/YYYY
+  // Date formatter function - DD/MM/YYYY
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -63,23 +63,37 @@ function Dashboard() {
     setFilteredRecords(filtered);
   }, [selectedMandal, selectedVillage, records]);
 
-  // Calculate statistics - FIXED VERSION
+  // Calculate statistics - FIXED VOTER CARDS COUNT
   const stats = {
-    totalFamilies: filteredRecords.length, // Total records (each person)
+    totalFamilies: filteredRecords.length,
     totalPersons: filteredRecords.reduce((sum, r) => sum + (r.numFamilyPersons || 0), 0),
     male: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "MALE").length,
     female: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "FEMALE").length,
-    // Count only non-null, non-empty unique cards
+    // Count only non-null, non-empty unique ration cards
     uniqueRationCards: new Set(
       filteredRecords
         .map(r => r.rationCard)
         .filter(card => card != null && card !== '' && card !== 'null')
-        .map(card => String(card).trim().toUpperCase()) // Normalize
+        .map(card => String(card).trim().toUpperCase())
     ).size,
+    // ✅ FIXED: Exclude "BELOW 18 YEARS" and "NOT FOUND" from voter cards count
     uniqueVoterCards: new Set(
       filteredRecords
         .map(r => r.voterCard)
-        .filter(card => card && card.toString().trim() !== '')
+        .filter(card => {
+          if (!card || card.toString().trim() === '') return false;
+          const cardStr = String(card).trim().toUpperCase();
+          // Exclude invalid entries
+          if (cardStr === 'BELOW 18 YEARS' || 
+              cardStr === 'NOT FOUND' || 
+              cardStr === 'NA' || 
+              cardStr === 'N/A' ||
+              cardStr === 'NULL') {
+            return false;
+          }
+          return true;
+        })
+        .map(card => String(card).trim().toUpperCase())
     ).size,
   };
 
@@ -322,7 +336,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Upcoming Birthdays - 🆕 UPDATED WITH DD/MM/YYYY FORMAT */}
+      {/* Upcoming Birthdays */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="card shadow-sm">
