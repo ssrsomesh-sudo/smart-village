@@ -73,8 +73,7 @@ function Dashboard() {
     uniqueRationCards: new Set(
       filteredRecords
         .map(r => r.rationCard)
-        .filter(card => card != null && card !== '' && card !== 'null')
-        .map(card => String(card).trim().toUpperCase()) // Normalize
+        .filter(card => card && card.toString().trim() !== '')
     ).size,
     uniqueVoterCards: new Set(
       filteredRecords
@@ -185,11 +184,11 @@ function Dashboard() {
       {/* Statistics Cards */}
       <div className="row">
         <StatsCard icon="👨‍👩‍👧‍👦" title="Total Families" value={stats.totalFamilies} bgColor="primary" />
-        <StatsCard icon="👥" title="Total Persons" value={stats.totalPersons} bgColor="success" />
+        <StatsCard icon="👥" title="Total People" value={stats.totalPersons} bgColor="success" />
         <StatsCard icon="👨" title="Male" value={stats.male} bgColor="info" />
         <StatsCard icon="👩" title="Female" value={stats.female} bgColor="warning" textColor="dark" />
-        <StatsCard icon="🎫" title="Ration Cards" value={stats.uniqueRationCards} bgColor="danger" />
-         <StatsCard icon="🗳" title="Voter Cards" value={stats.uniqueVoterCards} bgColor="secondary" />
+        <StatsCard icon="🎫" title="With Ration Card" value={stats.peopleWithRationCards} bgColor="danger" />
+        <StatsCard icon="🗳" title="With Voter Card" value={stats.peopleWithVoterCards} bgColor="secondary" />
       </div>
 
       {/* Field Summaries */}
