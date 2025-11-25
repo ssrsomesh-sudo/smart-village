@@ -18,27 +18,38 @@ const allowedOrigins = [
   "http://localhost:4173"
 ];
 
-// CORS configuration - Allow Netlify, Cloudflare, and Cloudflare preview URLs
-app.use(cors({
+// CORS configuration
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);  // mobile apps / curl
-
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
     return callback(new Error("CORS: Origin not allowed → " + origin));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
-}));
-// 🔥 REQUIRED: Allow OPTIONS preflight for ALL routes
-app.options("*", cors());
+};
+
+app.use(cors(corsOptions));
+
+
+// ✅ FIXED: Use proper middleware for all OPTIONS requests instead of app.options("*")
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Body parser middleware - IMPORTANT for DELETE requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 
 // Configure multer for file uploads (store in memory)
 const storage = multer.memoryStorage();
