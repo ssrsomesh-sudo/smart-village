@@ -29,7 +29,7 @@ function Dashboard() {
   const loadRecords = async () => {
     try {
       setLoading(true);
-      const res = await fetch("https://smart-village-cn6f.onrender.com/records");
+      const res = await fetch("https://smart-village-production.up.railway.app/records");
       const data = await res.json();
       setRecords(data);
       setFilteredRecords(data);
