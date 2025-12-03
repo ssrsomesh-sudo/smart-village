@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import FilterBar from "./FilterBar";
-
+import { API_URL } from '../config/api';
 function Residents() {
   const [form, setForm] = useState({
     mandalName: "",
@@ -45,7 +45,7 @@ function Residents() {
     return age;
   };
 
-  const API_URL = "https://smart-village-cn6f.onrender.com";
+  //const API_URL = "https://smart-village-cn6f.onrender.com";
 
   useEffect(() => {
     loadRecords();

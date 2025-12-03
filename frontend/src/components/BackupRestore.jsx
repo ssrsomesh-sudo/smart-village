@@ -1,12 +1,12 @@
 import { useState } from 'react';
-
+import { API_URL } from '../config/api';
 const BackupRestore = () => {
   const [backupFile, setBackupFile] = useState(null);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const API_URL = 'https://smart-village-cn6f.onrender.com';
+  //const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   // Export/Download Backup
   const handleExportBackup = async () => {

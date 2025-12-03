@@ -1,12 +1,12 @@
 import { useState } from 'react';
-
+import { API_URL } from '../config/api';
 const Settings = () => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const API_URL = 'https://smart-village-cn6f.onrender.com';
+  //const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];

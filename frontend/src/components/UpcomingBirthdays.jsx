@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config/api';
 
 const UpcomingBirthdays = () => {
   const [birthdays, setBirthdays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const API_URL = 'https://smart-village-cn6f.onrender.com';
+  //const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   useEffect(() => {
     fetchUpcomingBirthdays();

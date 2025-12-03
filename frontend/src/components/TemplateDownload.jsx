@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { API_URL } from '../config/api';
 
 const TemplateDownload = () => {
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [error, setError] = useState(null);
   
-  const API_URL = 'https://smart-village-cn6f.onrender.com';
+  //const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   const downloadTemplate = async () => {
     try {

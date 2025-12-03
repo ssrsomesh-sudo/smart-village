@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-
+import { API_URL } from '../config/api';
 const SearchFilter = () => {
   const [searchCriteria, setSearchCriteria] = useState({
     name: '',
@@ -20,7 +20,7 @@ const SearchFilter = () => {
   const [villages, setVillages] = useState([]);
   const [qualifications, setQualifications] = useState([]);
 
-  const API_URL = 'https://smart-village-cn6f.onrender.com';
+  //const API_URL = 'https://smart-village-cn6f.onrender.com';
 
   // Fetch unique mandals and villages for dropdowns
   useEffect(() => {
