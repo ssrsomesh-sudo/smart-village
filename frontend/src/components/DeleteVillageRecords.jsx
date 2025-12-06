@@ -1,239 +1,282 @@
 import { useState, useEffect } from 'react';
 import { API_URL } from '../config/api';
+
 const DeleteVillageRecords = () => {
+  const [mandals, setMandals] = useState([]);
   const [villages, setVillages] = useState([]);
+  const [selectedMandal, setSelectedMandal] = useState('');
   const [selectedVillage, setSelectedVillage] = useState('');
-  const [recordCount, setRecordCount] = useState(0);
+  const [villageRecords, setVillageRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  //const API_URL = 'https://smart-village-cn6f.onrender.com';
+  const [allRecords, setAllRecords] = useState([]);
 
   useEffect(() => {
-    fetchVillages();
+    fetchAllRecords();
   }, []);
 
-  const fetchVillages = async () => {
+  const fetchAllRecords = async () => {
     try {
       const response = await fetch(`${API_URL}/records`);
       const data = await response.json();
+      setAllRecords(data);
       
-      // Get unique villages with count
-      const villageMap = {};
-      data.forEach(record => {
-        const village = record.villageName;
-        if (village) {
-          villageMap[village] = (villageMap[village] || 0) + 1;
-        }
-      });
-
-      const villageList = Object.entries(villageMap).map(([name, count]) => ({
-        name,
-        count
-      })).sort((a, b) => a.name.localeCompare(b.name));
-
-      setVillages(villageList);
+      // Extract unique mandals
+      const uniqueMandals = [...new Set(data.map(r => r.mandalName))].filter(Boolean).sort();
+      setMandals(uniqueMandals);
     } catch (error) {
-      console.error('Error fetching villages:', error);
-      setError('Failed to load villages');
+      console.error('Error fetching records:', error);
     }
   };
 
-  const handleVillageChange = (e) => {
-    const village = e.target.value;
+  const handleMandalChange = (mandal) => {
+    setSelectedMandal(mandal);
+    setSelectedVillage('');
+    setVillageRecords([]);
+    
+    if (mandal) {
+      const filtered = allRecords.filter(r => r.mandalName === mandal);
+      const uniqueVillages = [...new Set(filtered.map(r => r.villageName))].filter(Boolean).sort();
+      setVillages(uniqueVillages);
+    } else {
+      setVillages([]);
+    }
+  };
+
+  const handleVillageChange = (village) => {
     setSelectedVillage(village);
     
-    const villageData = villages.find(v => v.name === village);
-    setRecordCount(villageData ? villageData.count : 0);
-    setMessage('');
-    setError('');
+    if (village && selectedMandal) {
+      const filtered = allRecords.filter(
+        r => r.mandalName === selectedMandal && r.villageName === village
+      );
+      setVillageRecords(filtered);
+    } else {
+      setVillageRecords([]);
+    }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteVillage = async () => {
     if (!selectedVillage) {
-      setError('Please select a village first');
+      setMessage('⚠️ Please select a village first');
       return;
     }
 
-    const confirmMsg = `⚠️ WARNING: Delete All Records from ${selectedVillage}?\n\n` +
-      `This will permanently delete ${recordCount} record(s).\n\n` +
-      `This action CANNOT be undone!\n\n` +
-      `Are you sure you want to continue?`;
-
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
-
-    const doubleConfirm = window.confirm(
-      `🚨 FINAL CONFIRMATION!\n\n` +
-      `You are about to DELETE ${recordCount} records from ${selectedVillage}.\n\n` +
-      `Click OK to DELETE, or Cancel to abort.`
+    const confirmation = window.confirm(
+      `Are you sure you want to DELETE ALL ${villageRecords.length} records from ${selectedVillage}, ${selectedMandal}?\n\nThis action CANNOT be undone!`
     );
 
-    if (!doubleConfirm) {
+    if (!confirmation) return;
+
+    const doubleConfirmation = window.prompt(
+      `Type the village name "${selectedVillage}" to confirm deletion:`
+    );
+
+    if (doubleConfirmation !== selectedVillage) {
+      setMessage('❌ Deletion cancelled - village name did not match');
       return;
     }
 
     setLoading(true);
-    setMessage('');
-    setError('');
+    setMessage('🗑️ Deleting records...');
 
     try {
       const response = await fetch(`${API_URL}/delete-village/${encodeURIComponent(selectedVillage)}`, {
         method: 'DELETE',
       });
 
-      const data = await response.json();
-
       if (response.ok) {
+        const data = await response.json();
         setMessage(`✅ Successfully deleted ${data.deletedCount} records from ${selectedVillage}`);
+        
+        // Refresh data
+        await fetchAllRecords();
+        setSelectedMandal('');
         setSelectedVillage('');
-        setRecordCount(0);
-        // Refresh village list
-        fetchVillages();
+        setVillageRecords([]);
+        setVillages([]);
+        
+        setTimeout(() => setMessage(''), 5000);
       } else {
-        setError(data.error || 'Failed to delete records');
+        const error = await response.json();
+        setMessage(`❌ Error: ${error.error || 'Failed to delete records'}`);
       }
-    } catch (err) {
-      setError('Failed to delete records. Please try again.');
-      console.error('Delete error:', err);
+    } catch (error) {
+      console.error('Delete error:', error);
+      setMessage('⚠️ Cannot connect to backend');
     } finally {
       setLoading(false);
     }
   };
 
+  const resetSelection = () => {
+    setSelectedMandal('');
+    setSelectedVillage('');
+    setVillageRecords([]);
+    setVillages([]);
+    setMessage('');
+  };
+
   return (
     <div className="container-fluid">
-      <div className="row">
-        <div className="col-md-8 offset-md-2">
-          <div className="card shadow-sm">
-            <div className="card-header bg-danger text-white">
-              <h5 className="mb-0">🗑️ Delete Village Records</h5>
-            </div>
-            <div className="card-body">
-              <div className="alert alert-warning">
-                <strong>⚠️ Warning:</strong> This will permanently delete ALL records 
-                from the selected village. Make sure you have a backup first!
-              </div>
-
-              {/* Village Selection */}
-              <div className="mb-4">
-                <label className="form-label">
-                  <strong>Select Village to Delete:</strong>
-                </label>
-                <select
-                  className="form-select form-select-lg"
-                  value={selectedVillage}
-                  onChange={handleVillageChange}
-                  disabled={loading}
-                >
-                  <option value="">-- Choose a Village --</option>
-                  {villages.map(village => (
-                    <option key={village.name} value={village.name}>
-                      {village.name} ({village.count} records)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Record Count Display */}
-              {selectedVillage && (
-                <div className="alert alert-info mb-4">
-                  <h6 className="mb-2">Selected Village:</h6>
-                  <p className="mb-1">
-                    <strong>Village:</strong> {selectedVillage}
-                  </p>
-                  <p className="mb-0">
-                    <strong>Total Records:</strong> {recordCount}
-                  </p>
-                </div>
-              )}
-
-              {/* Delete Button */}
-              <button
-                className="btn btn-danger btn-lg w-100 mb-3"
-                onClick={handleDelete}
-                disabled={!selectedVillage || loading}
+      {/* Filter Section */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-warning text-dark">
+          <h5 className="mb-0">🔍 Select Village to Delete</h5>
+        </div>
+        <div className="card-body">
+          <div className="row g-3">
+            <div className="col-md-5">
+              <label className="form-label fw-bold">Select Mandal</label>
+              <select
+                className="form-select form-select-lg"
+                value={selectedMandal}
+                onChange={(e) => handleMandalChange(e.target.value)}
               >
-                {loading ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2"></span>
-                    Deleting...
-                  </>
-                ) : (
-                  `🗑️ Delete All Records from ${selectedVillage || 'Selected Village'}`
-                )}
+                <option value="">-- Select Mandal --</option>
+                {mandals.map((mandal) => (
+                  <option key={mandal} value={mandal}>{mandal}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="col-md-5">
+              <label className="form-label fw-bold">Select Village</label>
+              <select
+                className="form-select form-select-lg"
+                value={selectedVillage}
+                onChange={(e) => handleVillageChange(e.target.value)}
+                disabled={!selectedMandal}
+              >
+                <option value="">-- Select Village --</option>
+                {villages.map((village) => (
+                  <option key={village} value={village}>{village}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-2 d-flex align-items-end">
+              <button className="btn btn-outline-secondary btn-lg w-100" onClick={resetSelection}>
+                🔄 Reset
               </button>
-
-              {/* Messages */}
-              {message && (
-                <div className="alert alert-success">
-                  {message}
-                </div>
+            </div>
+          </div>
+          
+          {selectedMandal && (
+            <div className="alert alert-info mt-3 mb-0">
+              <strong>Selected Mandal:</strong> {selectedMandal}
+              {selectedVillage && (
+                <>
+                  <br />
+                  <strong>Selected Village:</strong> {selectedVillage}
+                  <br />
+                  <strong>Total Records:</strong> {villageRecords.length}
+                </>
               )}
+            </div>
+          )}
+        </div>
+      </div>
 
-              {error && (
-                <div className="alert alert-danger">
-                  ❌ {error}
+      {/* Current Village Records Section - Only show when village is selected */}
+      {selectedMandal && selectedVillage && (
+        <div className="card shadow-sm mb-4">
+          <div className="card-header bg-danger text-white">
+            <h5 className="mb-0">
+              📋 Current Village Records: {selectedVillage}, {selectedMandal}
+              <span className="badge bg-light text-dark ms-2">{villageRecords.length} records</span>
+            </h5>
+          </div>
+          <div className="card-body">
+            {villageRecords.length > 0 ? (
+              <>
+                <div className="alert alert-warning">
+                  <strong>⚠️ Warning:</strong> You are about to delete {villageRecords.length} records from {selectedVillage}. This action cannot be undone!
                 </div>
-              )}
 
-              {/* Village List */}
-              <div className="mt-4">
-                <h6 className="text-muted">📊 Current Villages:</h6>
-                <div className="table-responsive">
-                  <table className="table table-sm table-striped">
-                    <thead>
+                <div className="table-responsive" style={{ maxHeight: "400px", overflowY: "auto" }}>
+                  <table className="table table-striped table-hover table-sm">
+                    <thead className="table-dark sticky-top">
                       <tr>
-                        <th>Village Name</th>
-                        <th className="text-end">Record Count</th>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Gender</th>
+                        <th>Members</th>
+                        <th>Address</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {villages.map(village => (
-                        <tr key={village.name}>
-                          <td>{village.name}</td>
-                          <td className="text-end">{village.count}</td>
+                      {villageRecords.map((record, index) => (
+                        <tr key={record.id}>
+                          <td>{index + 1}</td>
+                          <td>{record.name}</td>
+                          <td>{record.phoneNumber}</td>
+                          <td>{record.gender || 'N/A'}</td>
+                          <td><span className="badge bg-info">{record.numFamilyPersons}</span></td>
+                          <td>{record.address || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot>
-                      <tr className="table-primary">
-                        <th>Total Villages</th>
-                        <th className="text-end">{villages.length}</th>
-                      </tr>
-                    </tfoot>
                   </table>
                 </div>
-              </div>
 
-              {/* Instructions */}
-              <div className="alert alert-light mt-4">
-                <h6>📋 Instructions:</h6>
-                <ol className="mb-0 small">
-                  <li>Select the village you want to delete from the dropdown</li>
-                  <li>Review the number of records that will be deleted</li>
-                  <li>Click the delete button</li>
-                  <li>Confirm the action twice (safety measure)</li>
-                  <li>Records will be permanently deleted</li>
-                </ol>
+                <div className="mt-3 text-center">
+                  <button
+                    className="btn btn-danger btn-lg"
+                    onClick={handleDeleteVillage}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>🗑️ Delete All {villageRecords.length} Records from {selectedVillage}</>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="alert alert-info">
+                <strong>ℹ️ No records found</strong> for {selectedVillage} in {selectedMandal}
               </div>
+            )}
+          </div>
+        </div>
+      )}
 
-              {/* Safety Tips */}
-              <div className="alert alert-info mt-3 mb-0">
-                <h6>💡 Safety Tips:</h6>
-                <ul className="mb-0 small">
-                  <li><strong>Backup First:</strong> Always download a backup before deleting</li>
-                  <li><strong>Double Check:</strong> Make sure you selected the correct village</li>
-                  <li><strong>No Undo:</strong> Deleted records cannot be recovered</li>
-                  <li><strong>Alternative:</strong> Consider exporting village data before deletion</li>
-                </ul>
-              </div>
+      {/* Status Message */}
+      {message && (
+        <div className={`alert ${
+          message.includes('✅') ? 'alert-success' : 
+          message.includes('❌') ? 'alert-danger' : 
+          message.includes('⚠️') ? 'alert-warning' : 'alert-info'
+        } text-center`}>
+          {message}
+        </div>
+      )}
+
+      {/* Instructions */}
+      {!selectedMandal && !selectedVillage && (
+        <div className="card shadow-sm">
+          <div className="card-header bg-info text-white">
+            <h5 className="mb-0">📝 Instructions</h5>
+          </div>
+          <div className="card-body">
+            <ol className="mb-0">
+              <li>First, select a <strong>Mandal</strong> from the dropdown above</li>
+              <li>Then, select a <strong>Village</strong> from the filtered list</li>
+              <li>Review all records that will be deleted</li>
+              <li>Click the delete button and confirm twice to proceed</li>
+            </ol>
+            <div className="alert alert-danger mt-3 mb-0">
+              <strong>⚠️ Important:</strong> This action is permanent and cannot be undone. All records from the selected village will be permanently deleted.
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -2,46 +2,19 @@ import { useState, useEffect } from "react";
 import FilterBar from "./FilterBar";
 import StatsCard from "./StatsCard";
 
-function Dashboard() {
-  const [records, setRecords] = useState([]);
+function Dashboard({ records = [] }) {
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [mandals, setMandals] = useState([]);
   const [villages, setVillages] = useState([]);
   const [selectedMandal, setSelectedMandal] = useState("");
   const [selectedVillage, setSelectedVillage] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  // Date formatter function - DD/MM/YYYY
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  // Load records
+  // ✅ Process records when they change
   useEffect(() => {
-    loadRecords();
-  }, []);
-
-  const loadRecords = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("https://smart-village-production.up.railway.app/records");
-      const data = await res.json();
-      setRecords(data);
-      setFilteredRecords(data);
-      
-      const uniqueMandals = [...new Set(data.map(r => r.mandalName))].filter(Boolean).sort();
-      setMandals(uniqueMandals);
-    } catch (err) {
-      console.error("Error loading records:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setFilteredRecords(records);
+    const uniqueMandals = [...new Set(records.map(r => r.mandalName))].filter(Boolean).sort();
+    setMandals(uniqueMandals);
+  }, [records]);
 
   // Filter logic
   useEffect(() => {
@@ -63,20 +36,21 @@ function Dashboard() {
     setFilteredRecords(filtered);
   }, [selectedMandal, selectedVillage, records]);
 
-  // Calculate statistics - FIXED VOTER CARDS COUNT
+  // Calculate statistics
+  const male = filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "MALE").length;
+  const female = filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "FEMALE").length;
+  
   const stats = {
     totalFamilies: filteredRecords.length,
-    totalPersons: filteredRecords.reduce((sum, r) => sum + (r.numFamilyPersons || 0), 0),
-    male: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "MALE").length,
-    female: filteredRecords.filter(r => r.gender && r.gender.toUpperCase() === "FEMALE").length,
-    // Count only valid unique ration cards (exclude NO, NA, NOT FOUND, etc.)
+    totalPersons: male + female,
+    male: male,
+    female: female,
     uniqueRationCards: new Set(
       filteredRecords
         .map(r => r.rationCard)
         .filter(card => {
           if (!card || card === '' || card === 'null') return false;
           const cardStr = String(card).trim().toUpperCase();
-          // Exclude invalid entries
           if (cardStr === 'NO' || 
               cardStr === 'NOT FOUND' || 
               cardStr === 'NA' || 
@@ -89,14 +63,12 @@ function Dashboard() {
         })
         .map(card => String(card).trim().toUpperCase())
     ).size,
-    // ✅ FIXED: Exclude "BELOW 18 YEARS" and "NOT FOUND" from voter cards count
     uniqueVoterCards: new Set(
       filteredRecords
         .map(r => r.voterCard)
         .filter(card => {
           if (!card || card.toString().trim() === '') return false;
           const cardStr = String(card).trim().toUpperCase();
-          // Exclude invalid entries
           if (cardStr === 'BELOW 18 YEARS' || 
               cardStr === 'NOT FOUND' || 
               cardStr === 'NA' || 
@@ -143,8 +115,8 @@ function Dashboard() {
     }
   });
 
-  // Top 5 summaries
-  const getTop5 = (field) => {
+  // Top 10 summaries
+  const getTop10 = (field) => {
     const counts = {};
     filteredRecords.forEach(r => {
       const value = r[field];
@@ -154,48 +126,18 @@ function Dashboard() {
     });
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
+      .slice(0, 10);
   };
 
-  const topCastes = getTop5("caste");
-  const topOccupations = getTop5("occupation");
-  const topQualifications = getTop5("qualification");
-  const topSchemes = getTop5("schemesEligible");
-
-  // Upcoming birthdays (next 7 days)
-  const upcomingBirthdays = filteredRecords.filter(r => {
-    if (!r.dateOfBirth) return false;
-    const today = new Date();
-    const birth = new Date(r.dateOfBirth);
-    birth.setFullYear(today.getFullYear());
-    
-    const diffTime = birth - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays >= 0 && diffDays <= 7;
-  }).sort((a, b) => {
-    const aDate = new Date(a.dateOfBirth);
-    const bDate = new Date(b.dateOfBirth);
-    aDate.setFullYear(new Date().getFullYear());
-    bDate.setFullYear(new Date().getFullYear());
-    return aDate - bDate;
-  });
+  const topCastes = getTop10("caste");
+  const topOccupations = getTop10("occupation");
+  const topQualifications = getTop10("qualification");
+  const topSchemes = getTop10("schemesEligible");
 
   const resetFilters = () => {
     setSelectedMandal("");
     setSelectedVillage("");
   };
-
-  if (loading) {
-    return (
-      <div className="text-center p-5">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-        <p className="mt-3">Loading dashboard...</p>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -216,7 +158,7 @@ function Dashboard() {
         <StatsCard icon="👨" title="Male" value={stats.male} bgColor="info" />
         <StatsCard icon="👩" title="Female" value={stats.female} bgColor="warning" textColor="dark" />
         <StatsCard icon="🎫" title="Ration Cards" value={stats.uniqueRationCards} bgColor="danger" />
-         <StatsCard icon="🗳" title="Voter Cards" value={stats.uniqueVoterCards} bgColor="secondary" />
+        <StatsCard icon="🗳" title="Voter Cards" value={stats.uniqueVoterCards} bgColor="secondary" />
       </div>
 
       {/* Field Summaries */}
@@ -224,22 +166,24 @@ function Dashboard() {
         <div className="col-md-6 mb-3">
           <div className="card shadow-sm">
             <div className="card-header bg-primary text-white">
-              <h6 className="mb-0">📊 Top 5 Castes</h6>
+              <h6 className="mb-0">📊 Top 10 Castes</h6>
             </div>
             <div className="card-body">
               {topCastes.length > 0 ? (
-                <table className="table table-sm mb-0">
-                  <tbody>
-                    {topCastes.map(([caste, count]) => (
-                      <tr key={caste}>
-                        <td>{caste}</td>
-                        <td className="text-end">
-                          <span className="badge bg-primary">{count}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                  <table className="table table-sm mb-0">
+                    <tbody>
+                      {topCastes.map(([caste, count]) => (
+                        <tr key={caste}>
+                          <td>{caste}</td>
+                          <td className="text-end">
+                            <span className="badge bg-primary">{count}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="text-muted mb-0">No data available</p>
               )}
@@ -250,22 +194,24 @@ function Dashboard() {
         <div className="col-md-6 mb-3">
           <div className="card shadow-sm">
             <div className="card-header bg-success text-white">
-              <h6 className="mb-0">💼 Top 5 Occupations</h6>
+              <h6 className="mb-0">💼 Top 10 Occupations</h6>
             </div>
             <div className="card-body">
               {topOccupations.length > 0 ? (
-                <table className="table table-sm mb-0">
-                  <tbody>
-                    {topOccupations.map(([occupation, count]) => (
-                      <tr key={occupation}>
-                        <td>{occupation}</td>
-                        <td className="text-end">
-                          <span className="badge bg-success">{count}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                  <table className="table table-sm mb-0">
+                    <tbody>
+                      {topOccupations.map(([occupation, count]) => (
+                        <tr key={occupation}>
+                          <td>{occupation}</td>
+                          <td className="text-end">
+                            <span className="badge bg-success">{count}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="text-muted mb-0">No data available</p>
               )}
@@ -276,22 +222,24 @@ function Dashboard() {
         <div className="col-md-6 mb-3">
           <div className="card shadow-sm">
             <div className="card-header bg-info text-white">
-              <h6 className="mb-0">🎓 Top 5 Qualifications</h6>
+              <h6 className="mb-0">🎓 Top 10 Qualifications</h6>
             </div>
             <div className="card-body">
               {topQualifications.length > 0 ? (
-                <table className="table table-sm mb-0">
-                  <tbody>
-                    {topQualifications.map(([qualification, count]) => (
-                      <tr key={qualification}>
-                        <td>{qualification}</td>
-                        <td className="text-end">
-                          <span className="badge bg-info">{count}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                  <table className="table table-sm mb-0">
+                    <tbody>
+                      {topQualifications.map(([qualification, count]) => (
+                        <tr key={qualification}>
+                          <td>{qualification}</td>
+                          <td className="text-end">
+                            <span className="badge bg-info">{count}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="text-muted mb-0">No data available</p>
               )}
@@ -302,22 +250,24 @@ function Dashboard() {
         <div className="col-md-6 mb-3">
           <div className="card shadow-sm">
             <div className="card-header bg-warning text-dark">
-              <h6 className="mb-0">🎯 Schemes Eligible</h6>
+              <h6 className="mb-0">🎯 Top 10 Schemes Eligible</h6>
             </div>
             <div className="card-body">
               {topSchemes.length > 0 ? (
-                <table className="table table-sm mb-0">
-                  <tbody>
-                    {topSchemes.map(([scheme, count]) => (
-                      <tr key={scheme}>
-                        <td>{scheme}</td>
-                        <td className="text-end">
-                          <span className="badge bg-warning text-dark">{count}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                  <table className="table table-sm mb-0">
+                    <tbody>
+                      {topSchemes.map(([scheme, count]) => (
+                        <tr key={scheme}>
+                          <td>{scheme}</td>
+                          <td className="text-end">
+                            <span className="badge bg-warning text-dark">{count}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="text-muted mb-0">No data available</p>
               )}
@@ -344,47 +294,6 @@ function Dashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Upcoming Birthdays */}
-      <div className="row mt-4">
-        <div className="col-12">
-          <div className="card shadow-sm">
-            <div className="card-header bg-danger text-white">
-              <h6 className="mb-0">🎂 Upcoming Birthdays (Next 7 Days)</h6>
-            </div>
-            <div className="card-body">
-              {upcomingBirthdays.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-hover mb-0">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Village</th>
-                        <th>Date of Birth</th>
-                        <th>Age</th>
-                        <th>Phone</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {upcomingBirthdays.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.name}</td>
-                          <td>{r.villageName}</td>
-                          <td>{formatDate(r.dateOfBirth)}</td>
-                          <td>{calculateAge(r.dateOfBirth)} years</td>
-                          <td>{r.phoneNumber}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted mb-0 text-center">No upcoming birthdays in the next 7 days</p>
-              )}
             </div>
           </div>
         </div>

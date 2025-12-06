@@ -9,8 +9,8 @@
  */
 
 // 🚂 Railway API URL (REPLACE WITH YOUR ACTUAL URL)
-export const API_URL = 'https://smart-village-production.up.railway.app';
-
+//export const API_URL = 'https://smart-village-production.up.railway.app';
+export const API_URL = import.meta.env.VITE_API_URL || "https://smart-village-production.up.railway.app";
 // Replace 'xxxx' with your actual Railway subdomain
 // Example: https://smart-village-production-a1b2c3d4.up.railway.app
 
