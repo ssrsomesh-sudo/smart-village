@@ -8,6 +8,7 @@ const Navbar = ({ currentPage, onPageChange }) => {
     { id: "bulk-delete", label: "🧹 Bulk Delete", icon: "🧹" }, // ⭐ ADD THIS
     { id: "backup", label: "💾 Backup", icon: "💾" },
     { id: "template", label: "📥 Template", icon: "📥" }, // ⭐ ADD THIS
+    { id: "sms", label: "📨 SMS Center", icon: "📨" },
     { id: "settings", label: "⚙️ Settings", icon: "⚙️" },
   ];
 

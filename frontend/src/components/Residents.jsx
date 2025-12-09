@@ -100,52 +100,6 @@ function Residents({ records: allRecords = [], refreshData }) {
     return age;
   };
 
-  useEffect(() => {
-    loadRecords();
-  }, []);
-
-  const loadRecords = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_URL}/records`);
-      const data = await res.json();
-      setRecords(data);
-      
-      const uniqueMandals = [...new Set(data.map(r => r.mandalName))].filter(Boolean).sort();
-      setMandals(uniqueMandals);
-    } catch (err) {
-      console.error("Error loading records:", err);
-    } finally {
-      setLoading(false);
-      setInitialLoad(false);
-    }
-  };
-
-  // ✅ Filter logic - only show records when BOTH mandal AND village are selected
-  useEffect(() => {
-    if (!selectedMandal) {
-      setVillages([]);
-      setSelectedVillage("");
-      setFilteredRecords([]);
-      return;
-    }
-
-    // Filter by mandal to get villages
-    const mandalFiltered = records.filter(r => r.mandalName === selectedMandal);
-    const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
-    setVillages(uniqueVillages);
-
-    // ✅ Only show records if village is also selected
-    if (selectedVillage) {
-      const filtered = mandalFiltered.filter(r => r.villageName === selectedVillage);
-      setFilteredRecords(filtered);
-    } else {
-      setFilteredRecords([]);
-    }
-
-    setCurrentPage(1); // Reset to first page when filter changes
-  }, [selectedMandal, selectedVillage, records]);
-
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -197,6 +151,7 @@ function Residents({ records: allRecords = [], refreshData }) {
         setMessage("❌ Failed to save record.");
       }
     } catch (err) {
+      console.error("Error saving record:", err);
       setMessage("⚠️ Cannot connect to backend.");
     }
   };
@@ -208,7 +163,7 @@ function Residents({ records: allRecords = [], refreshData }) {
       rationCard: record.rationCard || "",
       voterCard: record.voterCard || "",
       name: record.name || "",
-      numFamilyPersons: record.numFamilyPersons?.toString() || "",
+      numFamilyPersons: record.numFamilyPersons || "",
       address: record.address || "",
       phoneNumber: record.phoneNumber || "",
       aadhar: record.aadhar || "",
@@ -224,10 +179,34 @@ function Residents({ records: allRecords = [], refreshData }) {
       schemesEligible: record.schemesEligible || "",
     });
     setEditingId(record.id);
-    window.scrollTo({ top: 400, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id, name) => {
+    const confirmDelete = window.confirm(`⚠️ Are you sure you want to delete:\n\n"${name}"?\n\nThis action cannot be undone!`);
+    if (!confirmDelete) return;
+
+    setMessage("🗑️ Deleting...");
+    try {
+      const response = await fetch(`${API_URL}/records/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setMessage("✅ Record deleted!");
+        if (refreshData) refreshData(); // ✅ Call parent refresh
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("❌ Failed to delete record.");
+      }
+    } catch (err) {
+      console.error("Error deleting record:", err);
+      setMessage("⚠️ Cannot connect to backend.");
+    }
   };
 
   const handleCancelEdit = () => {
+    setEditingId(null);
     setForm({
       mandalName: "",
       villageName: "",
@@ -249,54 +228,29 @@ function Residents({ records: allRecords = [], refreshData }) {
       shgMember: "",
       schemesEligible: "",
     });
-    setEditingId(null);
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete record for "${name}"?`)) return;
-
-    try {
-      const response = await fetch(`${API_URL}/records/${id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setMessage("✅ Record deleted!");
-        if (refreshData) refreshData(); // ✅ Call parent refresh
-        setTimeout(() => setMessage(""), 3000);
-      } else {
-        setMessage("❌ Failed to delete record.");
-      }
-    } catch (err) {
-      console.error("Delete error:", err);
-      setMessage("⚠️ Cannot connect to backend.");
-    }
-  };
-
-  const resetFilters = () => {
-    setSelectedMandal("");
-    setSelectedVillage("");
-  };
-
-  // ✅ Handle records per page change
-  const handleRecordsPerPageChange = (e) => {
-    setRecordsPerPage(Number(e.target.value));
-    setCurrentPage(1); // Reset to first page
-  };
-
-  // ✅ Pagination calculations
+  // ✅ Pagination logic
   const indexOfLastRecord = currentPage * recordsPerPage;
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
   const currentRecords = filteredRecords.slice(indexOfFirstRecord, indexOfLastRecord);
   const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
 
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const paginate = (pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
+  };
 
-  // ✅ Generate page numbers with ellipsis
+  const handleRecordsPerPageChange = (e) => {
+    setRecordsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-
+    
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -320,38 +274,37 @@ function Residents({ records: allRecords = [], refreshData }) {
         pages.push(totalPages);
       }
     }
-
+    
     return pages;
   };
 
   return (
-    <div>
+    <div className="container-fluid">
       <FilterBar
         mandals={mandals}
         villages={villages}
         selectedMandal={selectedMandal}
         selectedVillage={selectedVillage}
-        onMandalChange={setSelectedMandal}
+        onMandalChange={(mandal) => {
+          setSelectedMandal(mandal);
+          setSelectedVillage("");
+        }}
         onVillageChange={setSelectedVillage}
-        onReset={resetFilters}
       />
 
-      {/* Add/Edit Form */}
       <div className="card shadow-sm mb-4">
-        <div className={`card-header text-white ${editingId ? 'bg-warning' : 'bg-success'}`}>
-          <h5 className="mb-0">
-            {editingId ? "✏️ Edit Resident" : "➕ Add New Resident"}
-          </h5>
+        <div className="card-header bg-success text-white">
+          <h5 className="mb-0">{editingId ? "✏️ Edit Resident" : "➕ Add New Resident"}</h5>
         </div>
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <div className="row mb-3">
               <div className="col-md-6">
-                <label className="form-label fw-bold">Mandal <span className="text-danger">*</span></label>
+                <label className="form-label fw-bold">Mandal Name <span className="text-danger">*</span></label>
                 <input className="form-control" name="mandalName" value={form.mandalName} onChange={handleChange} required />
               </div>
               <div className="col-md-6">
-                <label className="form-label fw-bold">Village <span className="text-danger">*</span></label>
+                <label className="form-label fw-bold">Village Name <span className="text-danger">*</span></label>
                 <input className="form-control" name="villageName" value={form.villageName} onChange={handleChange} required />
               </div>
             </div>
@@ -368,39 +321,40 @@ function Residents({ records: allRecords = [], refreshData }) {
             </div>
 
             <div className="row mb-3">
-              <div className="col-md-6">
-                <label className="form-label fw-bold">Person Name <span className="text-danger">*</span></label>
+              <div className="col-md-4">
+                <label className="form-label fw-bold">Name <span className="text-danger">*</span></label>
                 <input className="form-control" name="name" value={form.name} onChange={handleChange} required />
               </div>
-              <div className="col-md-6">
-                <label className="form-label fw-bold">No. of Members <span className="text-danger">*</span></label>
-                <input type="number" className="form-control" name="numFamilyPersons" value={form.numFamilyPersons} onChange={handleChange} min="1" required />
+              <div className="col-md-4">
+                <label className="form-label fw-bold">No. of Family Members</label>
+                <input type="number" className="form-control" name="numFamilyPersons" value={form.numFamilyPersons} onChange={handleChange} />
+              </div>
+              <div className="col-md-4">
+                <label className="form-label fw-bold">Gender <span className="text-danger">*</span></label>
+                <select className="form-select" name="gender" value={form.gender} onChange={handleChange} required>
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
               </div>
             </div>
 
             <div className="row mb-3">
               <div className="col-md-4">
-                <label className="form-label fw-bold">Gender</label>
-                <select className="form-select" name="gender" value={form.gender} onChange={handleChange}>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </select>
-              </div>
-              <div className="col-md-4">
-                <label className="form-label fw-bold">Phone <span className="text-danger">*</span></label>
+                <label className="form-label fw-bold">Phone Number <span className="text-danger">*</span></label>
                 <input className="form-control" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} required />
               </div>
               <div className="col-md-4">
                 <label className="form-label fw-bold">Aadhar</label>
                 <input className="form-control" name="aadhar" value={form.aadhar} onChange={handleChange} maxLength="12" />
               </div>
-            </div>
-
-            <div className="row mb-3">
               <div className="col-md-4">
                 <label className="form-label fw-bold">Date of Birth</label>
                 <input type="date" className="form-control" name="dateOfBirth" value={form.dateOfBirth} onChange={handleChange} />
               </div>
+            </div>
+
+            <div className="row mb-3">
               <div className="col-md-4">
                 <label className="form-label fw-bold">Qualification</label>
                 <input className="form-control" name="qualification" value={form.qualification} onChange={handleChange} />
@@ -409,17 +363,37 @@ function Residents({ records: allRecords = [], refreshData }) {
                 <label className="form-label fw-bold">Occupation</label>
                 <input className="form-control" name="occupation" value={form.occupation} onChange={handleChange} />
               </div>
+              <div className="col-md-4">
+                <label className="form-label fw-bold">Caste</label>
+                <input className="form-control" name="caste" value={form.caste} onChange={handleChange} />
+              </div>
             </div>
 
             <div className="row mb-3">
               <div className="col-md-6">
-                <label className="form-label fw-bold">Caste</label>
-                <input className="form-control" name="caste" value={form.caste} onChange={handleChange} />
-              </div>
-              <div className="col-md-6">
                 <label className="form-label fw-bold">Sub Caste</label>
                 <input className="form-control" name="subCaste" value={form.subCaste} onChange={handleChange} />
               </div>
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Need Employment</label>
+                <input className="form-control" name="needEmployment" value={form.needEmployment} onChange={handleChange} />
+              </div>
+            </div>
+
+            <div className="row mb-3">
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Arogyasri Card Number</label>
+                <input className="form-control" name="arogyasriCardNumber" value={form.arogyasriCardNumber} onChange={handleChange} />
+              </div>
+              <div className="col-md-6">
+                <label className="form-label fw-bold">SHG Member</label>
+                <input className="form-control" name="shgMember" value={form.shgMember} onChange={handleChange} />
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label fw-bold">Schemes Eligible</label>
+              <input className="form-control" name="schemesEligible" value={form.schemesEligible} onChange={handleChange} />
             </div>
 
             <div className="mb-3">

@@ -228,7 +228,7 @@ async function importFamilyRecords(excelFilePath) {
 }
 
 // Update this path to your Excel file
-const excelFilePath = './kottalapalli1.xlsx';
+const excelFilePath = './Smart-Village-Template.xlsx';
 
 console.log('='.repeat(60));
 console.log('   FAMILY RECORDS IMPORT TOOL (WITH DUPLICATE CHECK)');

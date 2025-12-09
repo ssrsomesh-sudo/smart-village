@@ -4,7 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 const multer = require('multer');
 const XLSX = require('xlsx');
-
+const fast2sms = require('fast-two-sms');
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
@@ -65,50 +65,103 @@ const upload = multer({
     }
   }
 });
+// -------------------- DATE / TIME HELPERS (IST-safe) --------------------
 
+/**
+ * Return today's date at local midnight in IST (no time component)
+ */
+function todayIST() {
+  const now = new Date();
+  // Convert to IST string then back to Date — this gives local IST time as Date object
+  const istString = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const istDate = new Date(istString);
+  return new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+}
+
+/**
+ * Strip time component from a Date (set to local midnight in server timezone)
+ */
+function stripTime(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/**
+ * Return birthday date in a given year (Date at midnight)
+ */
+function birthdayThisYear(dob, referenceDate) {
+  return new Date(referenceDate.getFullYear(), dob.getMonth(), dob.getDate());
+}
+
+/**
+ * Days between two dates (both treated at midnight)
+ */
+function daysBetween(d1, d2) {
+  const a = stripTime(d1);
+  const b = stripTime(d2);
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Normalize a stored dateOfBirth to IST date (midnight) without changing the calendar date
+ * - If record.dateOfBirth is a Date string, this returns a Date at IST midnight for that DOB.
+ */
+function normalizeDateToISTMidnight(dateValue) {
+  if (!dateValue) return null;
+  const orig = new Date(dateValue);
+  // Convert original Date instant to IST local representation
+  const istString = orig.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const istDate = new Date(istString);
+  // Create a Date at IST midnight (year, month, day)
+  return new Date(istDate.getFullYear(), istDate.getMonth(), istDate.getDate());
+}
+
+// -------------------- Excel date parsing --------------------
 // Helper function to parse date from Excel format (DD-MM-YYYY)
 function parseExcelDate(dateString) {
   if (!dateString) return null;
-  
   try {
     if (typeof dateString === 'string' && dateString.includes('-')) {
       const [day, month, year] = dateString.split('-');
       const date = new Date(`${year}-${month}-${day}`);
       return isNaN(date.getTime()) ? null : date;
     }
-    
-    if (dateString instanceof Date) {
-      return dateString;
-    }
-    
+    if (dateString instanceof Date) return dateString;
     if (typeof dateString === 'number') {
       const date = new Date((dateString - 25569) * 86400 * 1000);
       return date;
     }
-    
     return null;
-  } catch (error) {
-    console.warn(`Could not parse date: ${dateString}`);
+  } catch (err) {
+    console.warn('Could not parse date', dateString, err);
     return null;
   }
 }
-
+ 
 // Helper function to check if birthday is this week
 function isBirthdayThisWeek(dateOfBirth) {
   if (!dateOfBirth) return false;
-  const today = new Date();
+  
+  // Use IST timezone
+  const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  today.setHours(0, 0, 0, 0);
+  
   const dob = new Date(dateOfBirth);
   dob.setFullYear(today.getFullYear());
+  
   const weekFromNow = new Date(today);
   weekFromNow.setDate(today.getDate() + 7);
+  
   return dob >= today && dob <= weekFromNow;
 }
 
 // Helper function to check if birthday is this month
 function isBirthdayThisMonth(dateOfBirth) {
   if (!dateOfBirth) return false;
-  const today = new Date();
+  
+  // Use IST timezone
+  const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
   const dob = new Date(dateOfBirth);
+  
   return dob.getMonth() === today.getMonth();
 }
 
@@ -407,7 +460,7 @@ app.get('/birthdays/week', async (req, res) => {
   }
 });
 
-// ✅ GET - Get upcoming birthdays (next 30 days)
+// ✅ FIXED: Get upcoming birthdays endpoint
 app.get('/birthdays/upcoming', async (req, res) => {
   try {
     const allRecords = await prisma.familyRecord.findMany({
@@ -416,8 +469,11 @@ app.get('/birthdays/upcoming', async (req, res) => {
       }
     });
 
-    const today = new Date();
-    const thirtyDaysFromNow = new Date();
+    // Use IST timezone for today's date
+    const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    today.setHours(0, 0, 0, 0);
+    
+    const thirtyDaysFromNow = new Date(today);
     thirtyDaysFromNow.setDate(today.getDate() + 30);
 
     const upcomingBirthdays = allRecords.filter(record => {
@@ -803,37 +859,244 @@ app.delete('/delete-village/:villageName', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// ✅ GET - Get statistics
-app.get('/stats', async (req, res) => {
+// ✅ POST - Send bulk SMS
+app.post('/send-sms-bulk', async (req, res) => {
   try {
-    const totalRecords = await prisma.familyRecord.count();
-    const totalMandals = await prisma.familyRecord.groupBy({
-      by: ['mandalName'],
-    });
-    const totalVillages = await prisma.familyRecord.groupBy({
-      by: ['villageName'],
-    });
-    const birthdaysThisWeek = await prisma.familyRecord.count({
-      where: { birthdayThisWeek: true }
-    });
-    const birthdaysThisMonth = await prisma.familyRecord.count({
-      where: { birthdayThisMonth: true }
-    });
+    const { numbers, message } = req.body;
 
-    res.json({
-      totalRecords,
-      totalMandals: totalMandals.length,
-      totalVillages: totalVillages.length,
-      birthdaysThisWeek,
-      birthdaysThisMonth
+    // Validation
+    if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: "No valid phone numbers provided" 
+      });
+    }
+
+    if (!message || message.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: "Message cannot be empty" 
+      });
+    }
+
+    // Clean phone numbers
+    const validNumbers = numbers
+      .map(num => String(num).trim().replace(/\D/g, ''))
+      .filter(num => num.length === 10 && /^[6-9]/.test(num));
+
+    if (validNumbers.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: "No valid Indian mobile numbers found" 
+      });
+    }
+
+    console.log(`📤 Sending SMS to ${validNumbers.length} recipients`);
+
+    // Check if API key exists
+    if (!process.env.FAST2SMS_API_KEY) {
+      console.log('⚠️ TEST MODE - SMS not actually sent (no API key)');
+      
+      // Log to database anyway
+      await prisma.smsLog.create({
+        data: {
+          message: `[TEST] ${message.trim()}`,
+          recipients: validNumbers.length,
+          numbers: validNumbers.join(",")
+        }
+      });
+
+      return res.json({
+        success: true,
+        totalNumbers: validNumbers.length,
+        testMode: true
+      });
+    }
+
+    // Send SMS via Fast2SMS
+    try {
+      await fast2sms.sendMessage({
+        authorization: process.env.FAST2SMS_API_KEY,
+        message: message.trim(),
+        numbers: validNumbers
+      });
+
+      // Log to database
+      await prisma.smsLog.create({
+        data: {
+          message: message.trim(),
+          recipients: validNumbers.length,
+          numbers: validNumbers.join(",")
+        }
+      });
+
+      res.json({
+        success: true,
+        totalNumbers: validNumbers.length,
+        testMode: false
+      });
+
+    } catch (smsError) {
+      console.error('Fast2SMS Error:', smsError);
+      
+      await prisma.smsLog.create({
+        data: {
+          message: `[FAILED] ${message.trim()}`,
+          recipients: validNumbers.length,
+          numbers: validNumbers.join(",")
+        }
+      });
+
+      return res.status(500).json({ 
+        success: false,
+        error: "SMS service error: " + smsError.message 
+      });
+    }
+
+  } catch (err) {
+    console.error("Bulk SMS Error:", err);
+    res.status(500).json({ 
+      success: false,
+      error: err.message 
     });
+  }
+});
+
+// ✅ GET - SMS History
+app.get('/sms-history', async (req, res) => {
+  try {
+    const logs = await prisma.smsLog.findMany({
+      orderBy: { sentAt: 'desc' },
+      take: 50
+    });
+    res.json(logs);
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('Error fetching SMS history:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// ✅ GET - SMS Statistics
+app.get('/sms-stats', async (req, res) => {
+  try {
+    const totalMessagesSent = await prisma.smsLog.count();
+    
+    const allLogs = await prisma.smsLog.findMany({
+      select: { recipients: true }
+    });
+    const totalRecipients = allLogs.reduce((sum, log) => sum + log.recipients, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const sentToday = await prisma.smsLog.count({
+      where: { sentAt: { gte: today } }
+    });
+
+    res.json({
+      totalMessagesSent,
+      totalRecipients,
+      sentToday
+    });
+  } catch (error) {
+    console.error('Error fetching SMS stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+// ✅ ONE-TIME FIX: Add this endpoint to fix existing birth dates
+// Run this once, then remove the endpoint
+app.post('/admin/fix-birth-dates', async (req, res) => {
+  try {
+    console.log('🔧 Starting birth date correction...');
+    
+    // Get all records with birth dates
+    const records = await prisma.familyRecord.findMany({
+      where: {
+        dateOfBirth: { not: null }
+      }
+    });
+
+    console.log(`Found ${records.length} records with birth dates`);
+
+    let updatedCount = 0;
+
+    for (const record of records) {
+      try {
+        const oldDate = new Date(record.dateOfBirth);
+        
+        // Add 1 day to correct the timezone offset
+        const correctedDate = new Date(oldDate);
+        correctedDate.setDate(correctedDate.getDate() + 1);
+        
+        // Update the record
+        await prisma.familyRecord.update({
+          where: { id: record.id },
+          data: {
+            dateOfBirth: correctedDate,
+            birthdayThisWeek: isBirthdayThisWeek(correctedDate),
+            birthdayThisMonth: isBirthdayThisMonth(correctedDate)
+          }
+        });
+
+        updatedCount++;
+        
+        if (updatedCount % 100 === 0) {
+          console.log(`✅ Updated ${updatedCount} records...`);
+        }
+      } catch (error) {
+        console.error(`Error updating record ${record.id}:`, error.message);
+      }
+    }
+
+    console.log(`✅ Completed! Updated ${updatedCount} birth dates`);
+
+    res.json({
+      message: 'Birth dates corrected successfully',
+      totalRecords: records.length,
+      updatedRecords: updatedCount
+    });
+
+  } catch (error) {
+    console.error('Error fixing birth dates:', error);
+    res.status(500).json({ 
+      error: 'Failed to fix birth dates',
+      details: error.message 
+    });
+  }
+});
+
+// Test the fix - view some corrected records
+app.get('/admin/test-dates', async (req, res) => {
+  try {
+    const samples = await prisma.familyRecord.findMany({
+      where: {
+        dateOfBirth: { not: null },
+        villageName: 'CHENETHACOLONY'
+      },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        dateOfBirth: true,
+        villageName: true
+      }
+    });
+
+    // Show the dates in IST format
+    const formatted = samples.map(r => ({
+      ...r,
+      dateOfBirth: r.dateOfBirth ? new Date(r.dateOfBirth).toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'full'
+      }) : null
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // Start server
 app.listen(PORT, () => {
   console.log(`

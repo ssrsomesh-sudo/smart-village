@@ -10,6 +10,7 @@ import DeleteVillageRecords from "./components/DeleteVillageRecords";
 import DateTimeBar from "./components/DateTimeBar";
 import TemplateDownload from './components/TemplateDownload';
 import BulkDeleteUtility from './components/BulkDeleteUtility'; // ⭐ ADD THIS
+import SMSCenter from "./components/SMSCenter"; // <-- ADD THIS
 import { API_URL } from './config/api';
 
 function App() {
@@ -83,6 +84,8 @@ function App() {
         return <BackupRestore refreshData={refreshData} />;
       case "template":
         return <TemplateDownload />;
+      case "sms":
+        return <SMSCenter records={allRecords} refreshData={refreshData} />;
       case "settings":
         return <Settings />;
       default:
@@ -108,6 +111,8 @@ function App() {
         return "💾 Backup & Restore";
       case "template":
         return "📥 Download Excel Template";
+      case "sms":
+        return "📨 SMS Center";
       case "settings":
         return "⚙️ System Settings";
       default:
