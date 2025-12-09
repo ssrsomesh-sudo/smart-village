@@ -80,7 +80,6 @@ async function importWithOptions(excelFilePath) {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawData = XLSX.utils.sheet_to_json(worksheet);
-    
     console.log(`\n✅ Found ${rawData.length} records in sheet: ${sheetName}`);
     console.log(`⚙️  Duplicate Strategy: ${IMPORT_OPTIONS.duplicateStrategy}`);
     console.log(`🔍 Checking duplicates using: ${IMPORT_OPTIONS.duplicateCheckFields.join(', ')}\n`);
