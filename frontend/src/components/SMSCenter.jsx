@@ -126,30 +126,32 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     setSelectedBirthdayRecipients(birthdays.map(b => b.id));
   }, [allRecords]);
 
-  // ✅ Filter birthdays by mandal/village
+  // ✅ Filter birthdays by mandal/village - require BOTH
   useEffect(() => {
-    let filtered = todayBirthdays;
-
-    // Apply mandal filter
-    if (birthdayMandal) {
-      filtered = filtered.filter(r => r.mandalName === birthdayMandal);
-      
-      // Get villages for selected mandal
-      const mandalFiltered = todayBirthdays.filter(r => r.mandalName === birthdayMandal);
-      const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
-      setBirthdayVillages(uniqueVillages);
-    } else {
+    // Reset if no mandal selected
+    if (!birthdayMandal) {
       setBirthdayVillages([]);
       setBirthdayVillage('');
+      setFilteredBirthdays([]);
+      setSelectedBirthdayRecipients([]);
+      return;
     }
 
-    // Apply village filter
+    // Get villages for selected mandal
+    const mandalFiltered = todayBirthdays.filter(r => r.mandalName === birthdayMandal);
+    const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
+    setBirthdayVillages(uniqueVillages);
+
+    // Only show birthdays if BOTH mandal AND village are selected
     if (birthdayVillage) {
-      filtered = filtered.filter(r => r.villageName === birthdayVillage);
+      const filtered = mandalFiltered.filter(r => r.villageName === birthdayVillage);
+      setFilteredBirthdays(filtered);
+      setSelectedBirthdayRecipients(filtered.map(b => b.id));
+    } else {
+      setFilteredBirthdays([]);
+      setSelectedBirthdayRecipients([]);
     }
 
-    setFilteredBirthdays(filtered);
-    setSelectedBirthdayRecipients(filtered.map(b => b.id));
     setBirthdayCurrentPage(1); // Reset to page 1
   }, [birthdayMandal, birthdayVillage, todayBirthdays]);
 
@@ -157,9 +159,25 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     setBirthdayMandal('');
     setBirthdayVillage('');
     setBirthdayVillages([]);
-    setFilteredBirthdays(todayBirthdays);
-    setSelectedBirthdayRecipients(todayBirthdays.map(b => b.id));
+    setFilteredBirthdays([]);
+    setSelectedBirthdayRecipients([]);
     setBirthdayCurrentPage(1);
+  };
+
+  // ✅ Reset function for Send SMS tab
+  const handleSendSMSReset = () => {
+    setSelectedMandal('');
+    setSelectedVillage('');
+    setVillages([]);
+    setAgeMin('');
+    setAgeMax('');
+    setGender('');
+    setFilteredRecords([]);
+    setSelectedRecipients([]);
+    setShowPreview(false);
+    setMessage('');
+    setSelectedTemplate('');
+    setCurrentPage(1);
   };
 
   // ✅ Now useEffect can use the functions defined above
@@ -754,13 +772,21 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                 </div>
 
                 <div className="col-12">
-                  <button 
-                    className="btn btn-primary btn-lg"
-                    onClick={applyFilters}
-                    disabled={!selectedMandal || !selectedVillage}
-                  >
-                    🔍 Find Recipients
-                  </button>
+                  <div className="d-flex gap-2">
+                    <button 
+                      className="btn btn-primary btn-lg"
+                      onClick={applyFilters}
+                      disabled={!selectedMandal || !selectedVillage}
+                    >
+                      🔍 Find Recipients
+                    </button>
+                    <button 
+                      className="btn btn-secondary btn-lg"
+                      onClick={handleSendSMSReset}
+                    >
+                      🔄 Reset All
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -987,7 +1013,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                         setBirthdayVillage('');
                       }}
                     >
-                      <option value="">All Mandals</option>
+                      <option value="">-- Choose Mandal --</option>
                       {mandals.map(mandal => (
                         <option key={mandal} value={mandal}>{mandal}</option>
                       ))}
@@ -1002,7 +1028,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                       onChange={(e) => setBirthdayVillage(e.target.value)}
                       disabled={!birthdayMandal}
                     >
-                      <option value="">All Villages</option>
+                      <option value="">-- Choose Village --</option>
                       {birthdayVillages.map(village => (
                         <option key={village} value={village}>{village}</option>
                       ))}
@@ -1020,39 +1046,54 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                 </div>
                 
                 <div className="alert alert-info mt-3 mb-0">
-                  <strong>📊 Showing:</strong> {filteredBirthdays.length} of {todayBirthdays.length} total birthdays today
-                  {birthdayMandal && <><br/><strong>Mandal:</strong> {birthdayMandal}</>}
-                  {birthdayVillage && <><br/><strong>Village:</strong> {birthdayVillage}</>}
+                  {birthdayMandal && birthdayVillage ? (
+                    <>
+                      <strong>📊 Birthdays Found:</strong> {filteredBirthdays.length} in {birthdayVillage}, {birthdayMandal}
+                    </>
+                  ) : (
+                    <>
+                      <strong>ℹ️ Tip:</strong> Select mandal and village to see today's birthdays
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            {filteredBirthdays.length === 0 ? (
-              <div className="alert alert-warning">
-                {todayBirthdays.length === 0 ? (
-                  <>
-                    <h6 className="alert-heading">No birthdays today</h6>
-                    <p className="mb-0">
-                      There are no birthdays today in the system. Check back tomorrow!
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h6 className="alert-heading">No birthdays match your filters</h6>
-                    <p className="mb-0">
-                      There are {todayBirthdays.length} total birthdays today, but none match your selected filters.
-                      <br/>Try changing the mandal/village or click "Reset Filters" to see all.
-                    </p>
-                  </>
-                )}
+            {/* ✅ Instructions when no filters selected */}
+            {!birthdayMandal && !birthdayVillage && (
+              <div className="alert alert-info">
+                <h5 className="alert-heading">📋 How to View Today's Birthdays</h5>
+                <ol className="mb-0">
+                  <li>Select a <strong>Mandal</strong> from the filter above</li>
+                  <li>Then select a <strong>Village</strong></li>
+                  <li>Birthday records will appear</li>
+                </ol>
               </div>
-            ) : (
+            )}
+
+            {/* ✅ Message when only mandal selected */}
+            {birthdayMandal && !birthdayVillage && (
+              <div className="alert alert-warning">
+                <strong>⚠️ Please select a Village</strong> to view birthdays from {birthdayMandal}
+              </div>
+            )}
+
+            {/* ✅ Show birthdays only when BOTH mandal AND village selected */}
+            {birthdayMandal && birthdayVillage && filteredBirthdays.length === 0 && (
+              <div className="alert alert-warning">
+                <h6 className="alert-heading">No birthdays today in this village</h6>
+                <p className="mb-0">
+                  There are no birthdays today in {birthdayVillage}, {birthdayMandal}.
+                  <br/>Try selecting a different village or check back tomorrow!
+                </p>
+              </div>
+            )}
+
+            {/* ✅ Birthday list - Only show when BOTH mandal AND village selected AND has birthdays */}
+            {birthdayMandal && birthdayVillage && filteredBirthdays.length > 0 && (
               <>
                 <div className="alert alert-success">
-                  <strong>🎉 {filteredBirthdays.length} birthday(s) found!</strong>
-                  {(birthdayMandal || birthdayVillage) && (
-                    <span className="ms-2">(Filtered from {todayBirthdays.length} total)</span>
-                  )}
+                  <strong>🎉 {filteredBirthdays.length} birthday(s) found in {birthdayVillage}!</strong>
                 </div>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
