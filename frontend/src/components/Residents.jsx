@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import FilterBar from "./FilterBar";
 import { API_URL } from '../config/api';
 
-function Residents({ records: allRecords = [], refreshData }) {
+function Residents() {
   const [form, setForm] = useState({
     mandalName: "",
     villageName: "",
@@ -26,24 +26,104 @@ function Residents({ records: allRecords = [], refreshData }) {
   });
   
   const [message, setMessage] = useState("");
-  const [records, setRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [selectedMandal, setSelectedMandal] = useState("");
   const [selectedVillage, setSelectedVillage] = useState("");
   const [mandals, setMandals] = useState([]);
   const [villages, setVillages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
   
-  // Pagination state with dropdown
+  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(25);
 
-  // ✅ Update local records when props change
+  // ✅ Fetch mandals on component mount
   useEffect(() => {
-    setRecords(allRecords);
-    const uniqueMandals = [...new Set(allRecords.map(r => r.mandalName))].filter(Boolean).sort();
-    setMandals(uniqueMandals);
-  }, [allRecords]);
+    fetchMandals();
+  }, []);
+
+  const fetchMandals = async () => {
+    try {
+      // Fetch a few records just to get mandal list
+      const response = await fetch(`${API_URL}/records?limit=100`);
+      const data = await response.json();
+      const records = data.records || data;
+      const uniqueMandals = [...new Set(records.map(r => r.mandalName))].filter(Boolean).sort();
+      setMandals(uniqueMandals);
+    } catch (error) {
+      console.error('Error fetching mandals:', error);
+    }
+  };
+
+  // ✅ Fetch villages when mandal changes
+  useEffect(() => {
+    if (!selectedMandal) {
+      setVillages([]);
+      setSelectedVillage("");
+      setFilteredRecords([]);
+      return;
+    }
+
+    fetchVillages(selectedMandal);
+  }, [selectedMandal]);
+
+  const fetchVillages = async (mandal) => {
+    try {
+      const response = await fetch(`${API_URL}/records?mandalName=${mandal}&limit=100`);
+      const data = await response.json();
+      const records = data.records || data;
+      const uniqueVillages = [...new Set(records.map(r => r.villageName))].filter(Boolean).sort();
+      setVillages(uniqueVillages);
+    } catch (error) {
+      console.error('Error fetching villages:', error);
+    }
+  };
+
+  // ✅ Fetch filtered records when village changes
+  useEffect(() => {
+    if (!selectedMandal || !selectedVillage) {
+      setFilteredRecords([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    fetchFilteredRecords();
+    setCurrentPage(1); // Reset to first page
+  }, [selectedMandal, selectedVillage]);
+
+  const fetchFilteredRecords = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        mandalName: selectedMandal,
+        villageName: selectedVillage,
+        page: 1,
+        limit: 1000 // Get all records for selected village (villages are small)
+      });
+
+      const response = await fetch(`${API_URL}/records?${params.toString()}`);
+      const data = await response.json();
+      
+      console.log('📊 Fetched records:', data);
+
+      if (data.records) {
+        // New format with pagination
+        setFilteredRecords(data.records);
+        setTotalRecords(data.pagination?.total || data.records.length);
+      } else {
+        // Old format (array)
+        setFilteredRecords(data);
+        setTotalRecords(data.length);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching filtered records:', error);
+      setMessage('⚠️ Error loading records. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Date formatter function - DD/MM/YYYY
   const formatDate = (dateString) => {
@@ -54,31 +134,6 @@ function Residents({ records: allRecords = [], refreshData }) {
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
-
-  // ✅ Filter logic - only show records when BOTH mandal AND village are selected
-  useEffect(() => {
-    if (!selectedMandal) {
-      setVillages([]);
-      setSelectedVillage("");
-      setFilteredRecords([]);
-      return;
-    }
-
-    // Filter by mandal to get villages
-    const mandalFiltered = records.filter(r => r.mandalName === selectedMandal);
-    const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
-    setVillages(uniqueVillages);
-
-    // ✅ Only show records if village is also selected
-    if (selectedVillage) {
-      const filtered = mandalFiltered.filter(r => r.villageName === selectedVillage);
-      setFilteredRecords(filtered);
-    } else {
-      setFilteredRecords([]);
-    }
-
-    setCurrentPage(1); // Reset to first page when filter changes
-  }, [selectedMandal, selectedVillage, records]);
 
   // Format date for input (YYYY-MM-DD)
   const formatDateForInput = (dateString) => {
@@ -145,7 +200,12 @@ function Residents({ records: allRecords = [], refreshData }) {
           schemesEligible: "",
         });
         setEditingId(null);
-        if (refreshData) refreshData(); // ✅ Call parent refresh
+        
+        // ✅ Refresh records after save
+        if (selectedMandal && selectedVillage) {
+          fetchFilteredRecords();
+        }
+        
         setTimeout(() => setMessage(""), 3000);
       } else {
         setMessage("❌ Failed to save record.");
@@ -194,7 +254,12 @@ function Residents({ records: allRecords = [], refreshData }) {
 
       if (response.ok) {
         setMessage("✅ Record deleted!");
-        if (refreshData) refreshData(); // ✅ Call parent refresh
+        
+        // ✅ Refresh records after delete
+        if (selectedMandal && selectedVillage) {
+          fetchFilteredRecords();
+        }
+        
         setTimeout(() => setMessage(""), 3000);
       } else {
         setMessage("❌ Failed to delete record.");
@@ -230,7 +295,13 @@ function Residents({ records: allRecords = [], refreshData }) {
     });
   };
 
-  // ✅ Pagination logic
+  const resetFilters = () => {
+    setSelectedMandal("");
+    setSelectedVillage("");
+    setFilteredRecords([]);
+  };
+
+  // Pagination logic
   const indexOfLastRecord = currentPage * recordsPerPage;
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
   const currentRecords = filteredRecords.slice(indexOfFirstRecord, indexOfLastRecord);
@@ -244,57 +315,53 @@ function Residents({ records: allRecords = [], refreshData }) {
 
   const handleRecordsPerPageChange = (e) => {
     setRecordsPerPage(Number(e.target.value));
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page
   };
 
+  // Generate page numbers with ellipsis
   const getPageNumbers = () => {
     const pages = [];
-    const maxVisible = 5;
-    
-    if (totalPages <= maxVisible) {
+    if (totalPages <= 7) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
       }
     } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
+      if (currentPage <= 4) {
+        for (let i = 1; i <= 5; i++) pages.push(i);
         pages.push('...');
         pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
+      } else if (currentPage >= totalPages - 3) {
         pages.push(1);
         pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
       } else {
         pages.push(1);
         pages.push('...');
-        pages.push(currentPage - 1);
-        pages.push(currentPage);
-        pages.push(currentPage + 1);
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
         pages.push('...');
         pages.push(totalPages);
       }
     }
-    
     return pages;
   };
 
   return (
-    <div className="container-fluid">
+    <div>
+      {/* Filter Bar */}
       <FilterBar
         mandals={mandals}
         villages={villages}
         selectedMandal={selectedMandal}
         selectedVillage={selectedVillage}
-        onMandalChange={(mandal) => {
-          setSelectedMandal(mandal);
-          setSelectedVillage("");
-        }}
+        onMandalChange={setSelectedMandal}
         onVillageChange={setSelectedVillage}
+        onReset={resetFilters}
       />
 
+      {/* Add/Edit Form */}
       <div className="card shadow-sm mb-4">
         <div className="card-header bg-success text-white">
-          <h5 className="mb-0">{editingId ? "✏️ Edit Resident" : "➕ Add New Resident"}</h5>
+          <h5 className="mb-0">{editingId ? "✏️ Edit Record" : "➕ Add New Resident"}</h5>
         </div>
         <div className="card-body">
           <form onSubmit={handleSubmit}>
@@ -321,13 +388,20 @@ function Residents({ records: allRecords = [], refreshData }) {
             </div>
 
             <div className="row mb-3">
-              <div className="col-md-4">
+              <div className="col-md-6">
                 <label className="form-label fw-bold">Name <span className="text-danger">*</span></label>
                 <input className="form-control" name="name" value={form.name} onChange={handleChange} required />
               </div>
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Phone Number</label>
+                <input className="form-control" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} />
+              </div>
+            </div>
+
+            <div className="row mb-3">
               <div className="col-md-4">
-                <label className="form-label fw-bold">No. of Family Members</label>
-                <input type="number" className="form-control" name="numFamilyPersons" value={form.numFamilyPersons} onChange={handleChange} />
+                <label className="form-label fw-bold">Number of Family Members</label>
+                <input className="form-control" type="number" name="numFamilyPersons" value={form.numFamilyPersons} onChange={handleChange} />
               </div>
               <div className="col-md-4">
                 <label className="form-label fw-bold">Gender <span className="text-danger">*</span></label>
@@ -337,33 +411,29 @@ function Residents({ records: allRecords = [], refreshData }) {
                   <option value="OTHER">Other</option>
                 </select>
               </div>
-            </div>
-
-            <div className="row mb-3">
-              <div className="col-md-4">
-                <label className="form-label fw-bold">Phone Number <span className="text-danger">*</span></label>
-                <input className="form-control" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} required />
-              </div>
-              <div className="col-md-4">
-                <label className="form-label fw-bold">Aadhar</label>
-                <input className="form-control" name="aadhar" value={form.aadhar} onChange={handleChange} maxLength="12" />
-              </div>
               <div className="col-md-4">
                 <label className="form-label fw-bold">Date of Birth</label>
-                <input type="date" className="form-control" name="dateOfBirth" value={form.dateOfBirth} onChange={handleChange} />
+                <input className="form-control" type="date" name="dateOfBirth" value={form.dateOfBirth} onChange={handleChange} />
               </div>
             </div>
 
             <div className="row mb-3">
-              <div className="col-md-4">
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Aadhar Number</label>
+                <input className="form-control" name="aadhar" value={form.aadhar} onChange={handleChange} />
+              </div>
+              <div className="col-md-6">
                 <label className="form-label fw-bold">Qualification</label>
                 <input className="form-control" name="qualification" value={form.qualification} onChange={handleChange} />
               </div>
-              <div className="col-md-4">
+            </div>
+
+            <div className="row mb-3">
+              <div className="col-md-6">
                 <label className="form-label fw-bold">Occupation</label>
                 <input className="form-control" name="occupation" value={form.occupation} onChange={handleChange} />
               </div>
-              <div className="col-md-4">
+              <div className="col-md-6">
                 <label className="form-label fw-bold">Caste</label>
                 <input className="form-control" name="caste" value={form.caste} onChange={handleChange} />
               </div>
@@ -424,7 +494,7 @@ function Residents({ records: allRecords = [], refreshData }) {
         </div>
       </div>
 
-      {/* ✅ Instructions when no filters selected */}
+      {/* Instructions when no filters selected */}
       {!selectedMandal && !selectedVillage && (
         <div className="alert alert-info">
           <h5 className="alert-heading">📋 How to View Records</h5>
@@ -436,15 +506,25 @@ function Residents({ records: allRecords = [], refreshData }) {
         </div>
       )}
 
-      {/* ✅ Message when only mandal selected */}
+      {/* Message when only mandal selected */}
       {selectedMandal && !selectedVillage && (
         <div className="alert alert-warning">
           <strong>⚠️ Please select a Village</strong> to view records from {selectedMandal}
         </div>
       )}
 
-      {/* ✅ Table - Only show when BOTH mandal AND village are selected */}
-      {selectedMandal && selectedVillage && (
+      {/* Loading indicator */}
+      {loading && (
+        <div className="text-center my-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">Loading records...</p>
+        </div>
+      )}
+
+      {/* Table - Only show when BOTH mandal AND village are selected */}
+      {selectedMandal && selectedVillage && !loading && (
         <div className="card shadow-sm">
           <div className="card-header bg-primary text-white">
             <div className="d-flex justify-content-between align-items-center">
@@ -455,7 +535,7 @@ function Residents({ records: allRecords = [], refreshData }) {
                 </span>
               </h5>
               
-              {/* ✅ Records per page dropdown */}
+              {/* Records per page dropdown */}
               <div className="d-flex align-items-center gap-2">
                 <label className="mb-0 text-white">Show:</label>
                 <select 
@@ -529,7 +609,7 @@ function Residents({ records: allRecords = [], refreshData }) {
             )}
           </div>
           
-          {/* ✅ Pagination */}
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="card-footer bg-light">
               <div className="d-flex justify-content-between align-items-center">
