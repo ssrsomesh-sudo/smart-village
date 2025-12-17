@@ -376,53 +376,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// ✅ GET - Get family records with filtering and pagination
+// ✅ GET - Get all family records
 app.get('/records', async (req, res) => {
   try {
-    const { mandalName, villageName, page = 1, limit = 100 } = req.query;
-    
-    console.log('📊 Filters received:', { mandalName, villageName, page, limit });
-
-    // Build where clause for filtering
-    const where = {};
-    
-    if (mandalName && mandalName !== '' && mandalName !== 'ALL') {
-      where.mandalName = mandalName;
-    }
-    
-    if (villageName && villageName !== '' && villageName !== 'ALL') {
-      where.villageName = villageName;
-    }
-
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
-
-    // Get total count
-    const total = await prisma.familyRecord.count({ where });
-
-    // Get filtered records
     const records = await prisma.familyRecord.findMany({
-      where,
-      orderBy: { id: 'desc' },
-      skip,
-      take
+      orderBy: { id: 'desc' }
     });
-
-    console.log(`✅ Returned ${records.length} of ${total} records`);
-
-    res.json({
-      records,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit))
-      }
-    });
-    
+    res.json(records);
   } catch (error) {
-    console.error('❌ ERROR in /records:', error);
+    console.error('Error fetching records:', error);
     res.status(500).json({ error: error.message });
   }
 });

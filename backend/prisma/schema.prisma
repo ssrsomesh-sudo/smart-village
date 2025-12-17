@@ -32,14 +32,4 @@ model FamilyRecord {
   birthdayThisWeek     Boolean  @default(false)
   birthdayThisMonth    Boolean  @default(false)
   createdAt            DateTime @default(now())
-  @@index([mandalName])
-  @@index([villageName])
-  @@index([mandalName, villageName])
-}
-model SmsLog {
-  id          Int      @id @default(autoincrement())
-  message     String
-  recipients  Int
-  numbers     String   // comma-separated
-  sentAt      DateTime @default(now())
 }

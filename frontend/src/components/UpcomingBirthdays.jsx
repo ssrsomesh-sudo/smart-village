@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config/api';
 
 const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   const [allRecords, setAllRecords] = useState([]);
   const [birthdays, setBirthdays] = useState([]);
+  const [error, setError] = useState('');
   
   // Filter states
   const [mandals, setMandals] = useState([]);
@@ -13,37 +15,18 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const recordsPerPage = 12;
+  const recordsPerPage = 12; // 12 cards per page (3 rows × 4 columns)
 
+  // ✅ Update local records when props change
   useEffect(() => {
     setAllRecords(allRecordsFromProps);
     const uniqueMandals = [...new Set(allRecordsFromProps.map(r => r.mandalName))].filter(Boolean).sort();
     setMandals(uniqueMandals);
   }, [allRecordsFromProps]);
 
-  // ✅ Get IST date
-  const getTodayIST = () => {
-    const now = new Date();
-    const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-    const istDate = new Date(istString);
-    istDate.setHours(0, 0, 0, 0);
-    return istDate;
-  };
-
-  // ✅ Extract calendar date from stored UTC date string
-  const extractCalendarDate = (dateString) => {
-    if (!dateString) return null;
-    
-    const stored = new Date(dateString);
-    const year = stored.getUTCFullYear();
-    const month = stored.getUTCMonth();
-    const day = stored.getUTCDate();
-    
-    return { year, month, day };
-  };
-
-  // ✅ Filter birthdays with proper calendar date comparison
+  // ✅ Filter birthdays - only when BOTH mandal AND village are selected
   const filterBirthdays = (records, mandal, village, daysAhead = null, specificDate = null) => {
+    // Don't filter if mandal or village not selected
     if (!mandal || !village) {
       setBirthdays([]);
       return;
@@ -51,111 +34,72 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
 
     let filtered = records;
 
-    // Filter by mandal and village
+    // Filter by mandal
     filtered = filtered.filter(r => r.mandalName === mandal);
+
+    // Filter by village
     filtered = filtered.filter(r => r.villageName === village);
-
-    // Get today's date in IST
-    const today = getTodayIST();
-    const todayYear = today.getFullYear();
-    //const todayMonth = today.getMonth();
-    //const todayDay = today.getDate();
-
-    //console.log("=== BIRTHDAY FILTERING DEBUG ===");
-    //console.log("Today (IST):", today.toDateString(), `Y:${todayYear} M:${todayMonth} D:${todayDay}`);
 
     // Filter by date or days ahead
     const result = filtered.filter(r => {
       if (!r.dateOfBirth) return false;
 
-      const birthCalendar = extractCalendarDate(r.dateOfBirth);
-      if (!birthCalendar) return false;
-
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const birth = new Date(r.dateOfBirth);
+      
       if (specificDate) {
+        // Check if birthday matches specific date
         const targetDate = new Date(specificDate);
-        targetDate.setHours(0, 0, 0, 0);
-        //const targetYear = targetDate.getFullYear();
-        const targetMonth = targetDate.getMonth();
-        const targetDay = targetDate.getDate();
-
-        const matches = (birthCalendar.month === targetMonth && birthCalendar.day === targetDay);
-        
-        //console.log(`${r.name}: Birth M:${birthCalendar.month} D:${birthCalendar.day}, Target M:${targetMonth} D:${targetDay}, Match:${matches}`);
-        
-        return matches;
+        const thisYearBirthday = new Date(targetDate.getFullYear(), birth.getMonth(), birth.getDate());
+        return thisYearBirthday.getTime() === targetDate.getTime();
       } else if (daysAhead !== null) {
-        const thisYearBirthday = new Date(todayYear, birthCalendar.month, birthCalendar.day);
-        thisYearBirthday.setHours(0, 0, 0, 0);
-        
-        const nextYearBirthday = new Date(todayYear + 1, birthCalendar.month, birthCalendar.day);
-        nextYearBirthday.setHours(0, 0, 0, 0);
+        // Check if birthday is within next N days
+        const thisYearBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
+        const nextYearBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
         
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() + daysAhead);
-        targetDate.setHours(23, 59, 59, 999);
         
-        const isTodayOrFuture = thisYearBirthday >= today && thisYearBirthday <= targetDate;
-        const isNextYear = thisYearBirthday < today && nextYearBirthday <= targetDate;
-        
-        const shouldInclude = isTodayOrFuture || isNextYear;
-        
-        //console.log(`${r.name}: Birth M:${birthCalendar.month} D:${birthCalendar.day}, ThisYear:${thisYearBirthday.toDateString()}, Include:${shouldInclude}`);
-        
-        return shouldInclude;
+        return (thisYearBirthday >= today && thisYearBirthday <= targetDate) ||
+               (nextYearBirthday >= today && nextYearBirthday <= targetDate);
       }
       
       return false;
     });
 
-    //console.log(`Found ${result.length} birthdays matching criteria`);
-
-    // Enrich with calculated data
+    // Calculate days until birthday and age
     const enriched = result.map(record => {
-      const birthCalendar = extractCalendarDate(record.dateOfBirth);
-      const today = getTodayIST();
+      const birth = new Date(record.dateOfBirth);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      let thisYearBirthday = new Date(today.getFullYear(), birthCalendar.month, birthCalendar.day);
-      thisYearBirthday.setHours(0, 0, 0, 0);
+      let thisYearBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
       
       if (specificDate) {
         const targetDate = new Date(specificDate);
-        thisYearBirthday = new Date(targetDate.getFullYear(), birthCalendar.month, birthCalendar.day);
-        thisYearBirthday.setHours(0, 0, 0, 0);
+        thisYearBirthday = new Date(targetDate.getFullYear(), birth.getMonth(), birth.getDate());
       }
       
       if (thisYearBirthday < today && !specificDate) {
-        thisYearBirthday = new Date(today.getFullYear() + 1, birthCalendar.month, birthCalendar.day);
-        thisYearBirthday.setHours(0, 0, 0, 0);
+        thisYearBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
       }
       
-      const timeDiff = thisYearBirthday.getTime() - today.getTime();
-      const daysUntil = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+      const daysUntil = Math.ceil((thisYearBirthday - today) / (1000 * 60 * 60 * 24));
       
-      const age = thisYearBirthday.getFullYear() - birthCalendar.year;
-      
-      //console.log(`  -> ${record.name}: daysUntil=${daysUntil}, birthday=${thisYearBirthday.toDateString()}`);
-      
-      // ✅ FIXED: Store formatted date string directly to avoid re-parsing issues
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      const formattedDate = `${thisYearBirthday.getDate()} ${monthNames[thisYearBirthday.getMonth()]} ${thisYearBirthday.getFullYear()}`;
+      let age = thisYearBirthday.getFullYear() - birth.getFullYear();
       
       return {
         ...record,
         daysUntilBirthday: daysUntil,
         upcomingAge: age,
-        birthdayDate: formattedDate // Store pre-formatted to avoid timezone issues
+        birthdayDate: thisYearBirthday.toISOString().split('T')[0]
       };
     });
 
-    const validEnriched = enriched.filter(b => b.daysUntilBirthday >= 0);
-    
-    //console.log(`After filtering negatives: ${validEnriched.length} birthdays`);
-    //console.log("=== END DEBUG ===\n");
-    
-    validEnriched.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
-    setBirthdays(validEnriched);
-    setCurrentPage(1);
+    enriched.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
+    setBirthdays(enriched);
+    setCurrentPage(1); // Reset to first page
   };
 
   const handleMandalChange = (mandal) => {
@@ -175,6 +119,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   const handleVillageChange = (village) => {
     setSelectedVillage(village);
     
+    // ✅ Only filter when both mandal and village are selected
     if (selectedMandal && village) {
       if (selectedDate) {
         filterBirthdays(allRecords, selectedMandal, village, null, selectedDate);
@@ -189,6 +134,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   const handleDateChange = (date) => {
     setSelectedDate(date);
     
+    // ✅ Only filter when both mandal and village are selected
     if (selectedMandal && selectedVillage) {
       if (date) {
         filterBirthdays(allRecords, selectedMandal, selectedVillage, null, date);
@@ -206,22 +152,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
     setBirthdays([]);
   };
 
-  // ✅ FIXED: Format date without timezone issues
   const formatDate = (dateString) => {
-    // If already formatted (contains spaces), return as-is
-    if (dateString.includes(' ')) {
-      return dateString;
-    }
-    
-    // Handle ISO date strings (YYYY-MM-DD) without timezone issues
-    if (dateString.includes('-') && dateString.length === 10) {
-      const [year, month, day] = dateString.split('-');
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      return `${parseInt(day)} ${monthNames[parseInt(month) - 1]} ${year}`;
-    }
-    
-    // Fallback
     const date = new Date(dateString);
     const day = date.getDate();
     const month = date.toLocaleDateString('en-US', { month: 'long' });
@@ -232,51 +163,42 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   const getDaysText = (days) => {
     if (days === 0) return 'Today! 🎉';
     if (days === 1) return 'Tomorrow';
-    if (days < 0) return 'Past';
     return `In ${days} days`;
   };
 
   const getBadgeColor = (days) => {
-    if (days === 0) return 'bg-success';
-    if (days === 1) return 'bg-warning';
-    if (days < 0) return 'bg-secondary';
+    if (days === 0) return 'bg-danger';
+    if (days <= 3) return 'bg-warning';
     if (days <= 7) return 'bg-info';
-    return 'bg-primary';
+    return 'bg-secondary';
   };
 
-  // Pagination logic
+  // ✅ Pagination calculations
   const indexOfLastRecord = currentPage * recordsPerPage;
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
   const currentBirthdays = birthdays.slice(indexOfFirstRecord, indexOfLastRecord);
   const totalPages = Math.ceil(birthdays.length / recordsPerPage);
 
-  const paginate = (pageNumber) => {
-    if (pageNumber >= 1 && pageNumber <= totalPages) {
-      setCurrentPage(pageNumber);
-    }
-  };
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
+  // ✅ Generate page numbers with ellipsis
   const getPageNumbers = () => {
     const pages = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
       }
     } else {
       if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) {
-          pages.push(i);
-        }
+        for (let i = 1; i <= 4; i++) pages.push(i);
         pages.push('...');
         pages.push(totalPages);
       } else if (currentPage >= totalPages - 2) {
         pages.push(1);
         pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) {
-          pages.push(i);
-        }
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
       } else {
         pages.push(1);
         pages.push('...');
@@ -287,15 +209,24 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
         pages.push(totalPages);
       }
     }
-    
+
     return pages;
   };
 
+  if (error) {
+    return (
+      <div className="container-fluid">
+        <div className="alert alert-danger">❌ {error}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="container-fluid">
+      {/* Filter Section */}
       <div className="card shadow-sm mb-4">
-        <div className="card-header bg-primary text-white">
-          <h5 className="mb-0">🎂 Birthday Filters</h5>
+        <div className="card-header bg-info text-white">
+          <h5 className="mb-0">🔍 Filter Birthdays</h5>
         </div>
         <div className="card-body">
           <div className="row g-3">
@@ -306,13 +237,13 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
                 value={selectedMandal}
                 onChange={(e) => handleMandalChange(e.target.value)}
               >
-                <option value="">-- Choose Mandal --</option>
-                {mandals.map(mandal => (
+                <option value="">-- Select Mandal --</option>
+                {mandals.map((mandal) => (
                   <option key={mandal} value={mandal}>{mandal}</option>
                 ))}
               </select>
             </div>
-
+            
             <div className="col-md-4">
               <label className="form-label fw-bold">Select Village</label>
               <select
@@ -321,8 +252,8 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
                 onChange={(e) => handleVillageChange(e.target.value)}
                 disabled={!selectedMandal}
               >
-                <option value="">-- Choose Village --</option>
-                {villages.map(village => (
+                <option value="">-- Select Village --</option>
+                {villages.map((village) => (
                   <option key={village} value={village}>{village}</option>
                 ))}
               </select>
@@ -358,6 +289,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
         </div>
       </div>
 
+      {/* ✅ Instructions when no filters selected */}
       {!selectedMandal && !selectedVillage && (
         <div className="alert alert-info">
           <h5 className="alert-heading">🎂 How to View Birthdays</h5>
@@ -370,12 +302,14 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
         </div>
       )}
 
+      {/* ✅ Message when only mandal selected */}
       {selectedMandal && !selectedVillage && (
         <div className="alert alert-warning">
           <strong>⚠️ Please select a Village</strong> to view birthday records from {selectedMandal}
         </div>
       )}
 
+      {/* Header Section - Only show when village is selected */}
       {selectedMandal && selectedVillage && (
         <>
           <div className="row mb-4">
@@ -399,6 +333,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
             </div>
           </div>
 
+          {/* Birthdays List */}
           {birthdays.length === 0 ? (
             <div className="alert alert-info">
               <strong>ℹ️ No birthdays found</strong><br />
@@ -429,7 +364,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
                           <div className="d-flex align-items-center mb-1">
                             <span className="me-2">🎂</span>
                             <strong>Birthday:</strong>
-                            <span className="ms-2">{person.birthdayDate}</span>
+                            <span className="ms-2">{formatDate(person.birthdayDate)}</span>
                           </div>
                           <div className="d-flex align-items-center mb-1">
                             <span className="me-2">🎉</span>
@@ -468,6 +403,7 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
                 ))}
               </div>
 
+              {/* ✅ Pagination */}
               {totalPages > 1 && (
                 <div className="card shadow-sm mt-4">
                   <div className="card-body">

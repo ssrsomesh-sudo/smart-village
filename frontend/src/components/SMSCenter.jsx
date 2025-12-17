@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../config/api';
 
-
 const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   const [activeTab, setActiveTab] = useState('send');
   
@@ -26,10 +25,6 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(25);
   
-  // ✅ Birthday pagination
-  const [birthdayCurrentPage, setBirthdayCurrentPage] = useState(1);
-  const [birthdayRecordsPerPage, setBirthdayRecordsPerPage] = useState(25);
-  
   // Message
   const [message, setMessage] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -37,12 +32,6 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   // Birthday specific
   const [todayBirthdays, setTodayBirthdays] = useState([]);
   const [selectedBirthdayRecipients, setSelectedBirthdayRecipients] = useState([]);
-  
-  // ✅ Birthday filters
-  const [birthdayMandal, setBirthdayMandal] = useState('');
-  const [birthdayVillage, setBirthdayVillage] = useState('');
-  const [birthdayVillages, setBirthdayVillages] = useState([]);
-  const [filteredBirthdays, setFilteredBirthdays] = useState([]);
   
   // Loading states
   const [sending, setSending] = useState(false);
@@ -123,63 +112,8 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     });
 
     setTodayBirthdays(birthdays);
-    setFilteredBirthdays(birthdays); // Initially show all
     setSelectedBirthdayRecipients(birthdays.map(b => b.id));
   }, [allRecords]);
-
-  // ✅ Filter birthdays by mandal/village - require BOTH
-  useEffect(() => {
-    // Reset if no mandal selected
-    if (!birthdayMandal) {
-      setBirthdayVillages([]);
-      setBirthdayVillage('');
-      setFilteredBirthdays([]);
-      setSelectedBirthdayRecipients([]);
-      return;
-    }
-
-    // Get villages for selected mandal
-    const mandalFiltered = todayBirthdays.filter(r => r.mandalName === birthdayMandal);
-    const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
-    setBirthdayVillages(uniqueVillages);
-
-    // Only show birthdays if BOTH mandal AND village are selected
-    if (birthdayVillage) {
-      const filtered = mandalFiltered.filter(r => r.villageName === birthdayVillage);
-      setFilteredBirthdays(filtered);
-      setSelectedBirthdayRecipients(filtered.map(b => b.id));
-    } else {
-      setFilteredBirthdays([]);
-      setSelectedBirthdayRecipients([]);
-    }
-
-    setBirthdayCurrentPage(1); // Reset to page 1
-  }, [birthdayMandal, birthdayVillage, todayBirthdays]);
-
-  const handleBirthdayReset = () => {
-    setBirthdayMandal('');
-    setBirthdayVillage('');
-    setBirthdayVillages([]);
-    setFilteredBirthdays([]);
-    setSelectedBirthdayRecipients([]);
-    setBirthdayCurrentPage(1);
-  };
-
-  // ✅ Reset function for Send SMS tab
-  const handleSendSMSReset = () => {
-    setSelectedMandal('');
-    setSelectedVillage('');
-    setVillages([]);
-    setAgeMin('');
-    setAgeMax('');
-    setGender('');
-    setFilteredRecords([]);
-    setSelectedRecipients([]);
-    setShowPreview(false);
-    setMessage('');
-    setSelectedTemplate('');
-    setCurrentPage(1);
-  };
 
   // ✅ Now useEffect can use the functions defined above
   useEffect(() => {
@@ -199,7 +133,6 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     }
     if (activeTab === 'birthday') {
       loadTodayBirthdays();
-      setBirthdayCurrentPage(1); // Reset to first page
     }
   }, [activeTab, loadTodayBirthdays]);
 
@@ -343,17 +276,17 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   };
 
   const toggleAllBirthdayRecipients = () => {
-    if (selectedBirthdayRecipients.length === filteredBirthdays.length) {
+    if (selectedBirthdayRecipients.length === todayBirthdays.length) {
       setSelectedBirthdayRecipients([]);
     } else {
       const confirm = window.confirm(
         `⚠️ SELECT ALL WARNING\n\n` +
-        `You are about to select ALL ${filteredBirthdays.length} birthday recipients.\n\n` +
+        `You are about to select ALL ${todayBirthdays.length} birthday recipients.\n\n` +
         `Continue?`
       );
       
       if (confirm) {
-        setSelectedBirthdayRecipients(filteredBirthdays.map(b => b.id));
+        setSelectedBirthdayRecipients(todayBirthdays.map(b => b.id));
       }
     }
   };
@@ -464,7 +397,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
       return;
     }
 
-    const selectedBirthdays = filteredBirthdays.filter(b => selectedBirthdayRecipients.includes(b.id));
+    const selectedBirthdays = todayBirthdays.filter(b => selectedBirthdayRecipients.includes(b.id));
 
     // Confirmation with verification
     const firstConfirm = window.confirm(
@@ -591,54 +524,6 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
         pages.push(currentPage + 1);
         pages.push('...');
         pages.push(totalPages);
-      }
-    }
-    
-    return pages;
-  };
-
-  // ✅ Birthday pagination logic
-  const birthdayIndexOfLastRecord = birthdayCurrentPage * birthdayRecordsPerPage;
-  const birthdayIndexOfFirstRecord = birthdayIndexOfLastRecord - birthdayRecordsPerPage;
-  const currentBirthdayRecords = filteredBirthdays.slice(birthdayIndexOfFirstRecord, birthdayIndexOfLastRecord);
-  const birthdayTotalPages = Math.ceil(filteredBirthdays.length / birthdayRecordsPerPage);
-
-  const birthdayPaginate = (pageNumber) => {
-    if (pageNumber >= 1 && pageNumber <= birthdayTotalPages) {
-      setBirthdayCurrentPage(pageNumber);
-    }
-  };
-
-  const handleBirthdayRecordsPerPageChange = (e) => {
-    setBirthdayRecordsPerPage(Number(e.target.value));
-    setBirthdayCurrentPage(1);
-  };
-
-  const getBirthdayPageNumbers = () => {
-    const pages = [];
-    const maxVisible = 5;
-    
-    if (birthdayTotalPages <= maxVisible) {
-      for (let i = 1; i <= birthdayTotalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      if (birthdayCurrentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
-        pages.push('...');
-        pages.push(birthdayTotalPages);
-      } else if (birthdayCurrentPage >= birthdayTotalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = birthdayTotalPages - 3; i <= birthdayTotalPages; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        pages.push('...');
-        pages.push(birthdayCurrentPage - 1);
-        pages.push(birthdayCurrentPage);
-        pages.push(birthdayCurrentPage + 1);
-        pages.push('...');
-        pages.push(birthdayTotalPages);
       }
     }
     
@@ -773,21 +658,13 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                 </div>
 
                 <div className="col-12">
-                  <div className="d-flex gap-2">
-                    <button 
-                      className="btn btn-primary btn-lg"
-                      onClick={applyFilters}
-                      disabled={!selectedMandal || !selectedVillage}
-                    >
-                      🔍 Find Recipients
-                    </button>
-                    <button 
-                      className="btn btn-secondary btn-lg"
-                      onClick={handleSendSMSReset}
-                    >
-                      🔄 Reset All
-                    </button>
-                  </div>
+                  <button 
+                    className="btn btn-primary btn-lg"
+                    onClick={applyFilters}
+                    disabled={!selectedMandal || !selectedVillage}
+                  >
+                    🔍 Find Recipients
+                  </button>
                 </div>
               </div>
             </div>
@@ -999,131 +876,30 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
             <h5 className="mb-0">🎂 Today's Birthdays</h5>
           </div>
           <div className="card-body">
-            {/* ✅ Filter Controls */}
-            <div className="card mb-3 bg-light">
-              <div className="card-body">
-                <h6 className="card-title">🔍 Filter Birthdays</h6>
-                <div className="row g-3">
-                  <div className="col-md-4">
-                    <label className="form-label fw-bold">Mandal</label>
-                    <select
-                      className="form-select"
-                      value={birthdayMandal}
-                      onChange={(e) => {
-                        setBirthdayMandal(e.target.value);
-                        setBirthdayVillage('');
-                      }}
-                    >
-                      <option value="">-- Choose Mandal --</option>
-                      {mandals.map(mandal => (
-                        <option key={mandal} value={mandal}>{mandal}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-md-4">
-                    <label className="form-label fw-bold">Village</label>
-                    <select
-                      className="form-select"
-                      value={birthdayVillage}
-                      onChange={(e) => setBirthdayVillage(e.target.value)}
-                      disabled={!birthdayMandal}
-                    >
-                      <option value="">-- Choose Village --</option>
-                      {birthdayVillages.map(village => (
-                        <option key={village} value={village}>{village}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-md-4 d-flex align-items-end">
-                    <button 
-                      className="btn btn-secondary w-100"
-                      onClick={handleBirthdayReset}
-                    >
-                      🔄 Reset Filters
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="alert alert-info mt-3 mb-0">
-                  {birthdayMandal && birthdayVillage ? (
-                    <>
-                      <strong>📊 Birthdays Found:</strong> {filteredBirthdays.length} in {birthdayVillage}, {birthdayMandal}
-                    </>
-                  ) : (
-                    <>
-                      <strong>ℹ️ Tip:</strong> Select mandal and village to see today's birthdays
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ✅ Instructions when no filters selected */}
-            {!birthdayMandal && !birthdayVillage && (
+            {todayBirthdays.length === 0 ? (
               <div className="alert alert-info">
-                <h5 className="alert-heading">📋 How to View Today's Birthdays</h5>
-                <ol className="mb-0">
-                  <li>Select a <strong>Mandal</strong> from the filter above</li>
-                  <li>Then select a <strong>Village</strong></li>
-                  <li>Birthday records will appear</li>
-                </ol>
-              </div>
-            )}
-
-            {/* ✅ Message when only mandal selected */}
-            {birthdayMandal && !birthdayVillage && (
-              <div className="alert alert-warning">
-                <strong>⚠️ Please select a Village</strong> to view birthdays from {birthdayMandal}
-              </div>
-            )}
-
-            {/* ✅ Show birthdays only when BOTH mandal AND village selected */}
-            {birthdayMandal && birthdayVillage && filteredBirthdays.length === 0 && (
-              <div className="alert alert-warning">
-                <h6 className="alert-heading">No birthdays today in this village</h6>
+                <h6 className="alert-heading">No birthdays today</h6>
                 <p className="mb-0">
-                  There are no birthdays today in {birthdayVillage}, {birthdayMandal}.
-                  <br/>Try selecting a different village or check back tomorrow!
+                  There are no birthdays today in the system. Check back tomorrow!
                 </p>
               </div>
-            )}
-
-            {/* ✅ Birthday list - Only show when BOTH mandal AND village selected AND has birthdays */}
-            {birthdayMandal && birthdayVillage && filteredBirthdays.length > 0 && (
+            ) : (
               <>
                 <div className="alert alert-success">
-                  <strong>🎉 {filteredBirthdays.length} birthday(s) found in {birthdayVillage}!</strong>
+                  <strong>🎉 {todayBirthdays.length} birthday(s) found today!</strong>
                 </div>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h6>Select recipients:</h6>
-                  <div className="d-flex gap-2 align-items-center">
-                    {/* ✅ Records per page dropdown */}
-                    <label className="mb-0">Show:</label>
-                    <select 
-                      className="form-select form-select-sm" 
-                      style={{ width: 'auto' }}
-                      value={birthdayRecordsPerPage}
-                      onChange={handleBirthdayRecordsPerPageChange}
-                    >
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                    <span>per page</span>
-                    
+                  <div>
                     <button 
-                      className="btn btn-sm btn-outline-secondary"
+                      className="btn btn-sm btn-outline-secondary me-2"
                       onClick={toggleAllBirthdayRecipients}
                     >
-                      {selectedBirthdayRecipients.length === filteredBirthdays.length ? 'Deselect All' : 'Select All'}
+                      {selectedBirthdayRecipients.length === todayBirthdays.length ? 'Deselect All' : 'Select All'}
                     </button>
                     <span className="badge bg-primary">
-                      {selectedBirthdayRecipients.length} / {filteredBirthdays.length} selected
+                      {selectedBirthdayRecipients.length} / {todayBirthdays.length} selected
                     </span>
                   </div>
                 </div>
@@ -1135,7 +911,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                         <th width="50">
                           <input
                             type="checkbox"
-                            checked={selectedBirthdayRecipients.length === filteredBirthdays.length && filteredBirthdays.length > 0}
+                            checked={selectedBirthdayRecipients.length === todayBirthdays.length}
                             onChange={toggleAllBirthdayRecipients}
                           />
                         </th>
@@ -1147,7 +923,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {currentBirthdayRecords.map(person => (
+                      {todayBirthdays.map(person => (
                         <tr key={person.id}>
                           <td>
                             <input
@@ -1166,40 +942,6 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                     </tbody>
                   </table>
                 </div>
-
-                {/* ✅ Birthday Pagination */}
-                {birthdayTotalPages > 1 && (
-                  <div className="card mb-3">
-                    <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div className="text-muted small">
-                          Showing {birthdayIndexOfFirstRecord + 1} to {Math.min(birthdayIndexOfLastRecord, filteredBirthdays.length)} of {filteredBirthdays.length} birthdays
-                        </div>
-                        <nav>
-                          <ul className="pagination pagination-sm mb-0">
-                            <li className={`page-item ${birthdayCurrentPage === 1 ? 'disabled' : ''}`}>
-                              <button className="page-link" onClick={() => birthdayPaginate(birthdayCurrentPage - 1)}>Previous</button>
-                            </li>
-                            {getBirthdayPageNumbers().map((page, index) => (
-                              page === '...' ? (
-                                <li key={`ellipsis-${index}`} className="page-item disabled">
-                                  <span className="page-link">...</span>
-                                </li>
-                              ) : (
-                                <li key={page} className={`page-item ${birthdayCurrentPage === page ? 'active' : ''}`}>
-                                  <button className="page-link" onClick={() => birthdayPaginate(page)}>{page}</button>
-                                </li>
-                              )
-                            ))}
-                            <li className={`page-item ${birthdayCurrentPage === birthdayTotalPages ? 'disabled' : ''}`}>
-                              <button className="page-link" onClick={() => birthdayPaginate(birthdayCurrentPage + 1)}>Next</button>
-                            </li>
-                          </ul>
-                        </nav>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="alert alert-info">
                   <strong>📱 Message Preview:</strong>

@@ -1,20 +1,5 @@
-# Environment variables (IMPORTANT!)
-#.env
-
-# Dependencies
 node_modules/
-
-# Prisma
-prisma/.env
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS files
-.DS_Store
-Thumbs.db
-# Database files
+.env
 dev.db
 dev.db-journal
 *.log
