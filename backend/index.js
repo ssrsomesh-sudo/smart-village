@@ -379,12 +379,16 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 // ✅ GET - Get all family records
 app.get('/records', async (req, res) => {
   try {
+    console.log('📊 /records endpoint called');
     const records = await prisma.familyRecord.findMany({
-      orderBy: { id: 'desc' }
+      orderBy: { id: 'desc' },
+      take: 100  // ✅ Only load 100 records for now!
     });
+    
+    console.log(`✅ Fetched ${records.length} records`);
     res.json(records);
   } catch (error) {
-    console.error('Error fetching records:', error);
+    console.error('❌ ERROR:', error);
     res.status(500).json({ error: error.message });
   }
 });
