@@ -122,12 +122,15 @@ function parseExcelDate(dateString) {
   try {
     if (typeof dateString === 'string' && dateString.includes('-')) {
       const [day, month, year] = dateString.split('-');
-      const date = new Date(`${year}-${month}-${day}`);
+      // ✅ FIXED: Use Date.UTC to avoid timezone shift
+      const date = new Date(Date.UTC(year, month - 1, day));
       return isNaN(date.getTime()) ? null : date;
     }
     if (dateString instanceof Date) return dateString;
     if (typeof dateString === 'number') {
-      const date = new Date((dateString - 25569) * 86400 * 1000);
+      // ✅ FIXED: Excel serial number with UTC
+      const date = new Date(Date.UTC(1970, 0, 1));
+      date.setUTCDate(date.getUTCDate() + dateString - 25569);
       return date;
     }
     return null;
@@ -1096,6 +1099,147 @@ app.get('/admin/test-dates', async (req, res) => {
     console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+app.get('/api/residents/mandals', async (req, res) => {
+  try {
+    const result = await prisma.familyRecord.findMany({
+      select: { mandalName: true },
+      distinct: ['mandalName'],
+      orderBy: { mandalName: 'asc' }
+    });
+    
+    // Filter out null/empty values in JavaScript instead
+    const mandals = result
+      .map(r => r.mandalName)
+      .filter(m => m && m.trim().length > 0);
+    
+    console.log(`✅ Found ${mandals.length} mandals:`, mandals);
+    
+    res.json({ success: true, mandals, count: mandals.length });
+  } catch (error) {
+    console.error('❌ Error fetching mandals:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/residents/villages', async (req, res) => {
+  try {
+    const { mandal } = req.query;
+    if (!mandal) {
+      return res.status(400).json({ success: false, error: 'Mandal required' });
+    }
+    
+    const result = await prisma.familyRecord.findMany({
+      select: { villageName: true },
+      distinct: ['villageName'],
+      where: { mandalName: mandal },
+      orderBy: { villageName: 'asc' }
+    });
+    
+    // Filter in JavaScript
+    const villages = result
+      .map(r => r.villageName)
+      .filter(v => v && v.trim().length > 0);
+    
+    console.log(`✅ Found ${villages.length} villages in ${mandal}`);
+    
+    res.json({ success: true, villages, count: villages.length, mandal });
+  } catch (error) {
+    console.error('❌ Error fetching villages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/residents/count', async (req, res) => {
+  try {
+    const { mandal } = req.query;
+    const where = mandal ? { mandalName: mandal } : {};
+    const count = await prisma.familyRecord.count({ where });
+    
+    console.log(`✅ Count for ${mandal || 'all'}: ${count}`);
+    
+    res.json({ success: true, count, mandal: mandal || 'all' });
+  } catch (error) {
+    console.error('❌ Error counting residents:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/residents/upcoming-birthdays', async (req, res) => {
+  try {
+    const { mandal, days = 7 } = req.query;
+    if (!mandal) {
+      return res.status(400).json({ success: false, error: 'Mandal required' });
+    }
+    
+    const records = await prisma.familyRecord.findMany({
+      where: { 
+        mandalName: mandal, 
+        birthdayThisWeek: true 
+      },
+      select: { 
+        id: true, 
+        name: true, 
+        phoneNumber: true, 
+        villageName: true, 
+        dateOfBirth: true 
+      },
+      orderBy: { dateOfBirth: 'asc' }
+    });
+    
+    console.log(`✅ Found ${records.length} upcoming birthdays in ${mandal}`);
+    
+    res.json({ 
+      success: true, 
+      birthdays: records, 
+      count: records.length, 
+      mandal, 
+      days: parseInt(days) 
+    });
+  } catch (error) {
+    console.error('❌ Error fetching birthdays:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/residents/recent', async (req, res) => {
+  try {
+    const { mandal, days = 30 } = req.query;
+    if (!mandal) {
+      return res.status(400).json({ success: false, error: 'Mandal required' });
+    }
+    
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+    
+    const count = await prisma.familyRecord.count({
+      where: { 
+        mandalName: mandal,
+        createdAt: { gte: daysAgo }
+      }
+    });
+    
+    console.log(`✅ Recent additions in ${mandal} (last ${days} days): ${count}`);
+    
+    res.json({ 
+      success: true, 
+      count, 
+      mandal, 
+      days: parseInt(days) 
+    });
+  } catch (error) {
+    console.error('❌ Error fetching recent additions:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    port: PORT 
+  });
 });
 // Start server
 app.listen(PORT, () => {

@@ -100,27 +100,6 @@ function Residents({ records: allRecords = [], refreshData }) {
     return age;
   };
 
-  useEffect(() => {
-    loadRecords();
-  }, []);
-
-  const loadRecords = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_URL}/records`);
-      const data = await res.json();
-      setRecords(data);
-      
-      const uniqueMandals = [...new Set(data.map(r => r.mandalName))].filter(Boolean).sort();
-      setMandals(uniqueMandals);
-    } catch (err) {
-      console.error("Error loading records:", err);
-    } finally {
-      setLoading(false);
-      setInitialLoad(false);
-    }
-  };
-
   // ✅ Filter logic - only show records when BOTH mandal AND village are selected
   useEffect(() => {
     if (!selectedMandal) {
@@ -196,8 +175,9 @@ function Residents({ records: allRecords = [], refreshData }) {
       } else {
         setMessage("❌ Failed to save record.");
       }
-    } catch (err) {
-      setMessage("⚠️ Cannot connect to backend.");
+    } catch (error) {
+  console.error("Error saving record:", error);
+  setMessage("⚠️ Cannot connect to backend.");
     }
   };
 

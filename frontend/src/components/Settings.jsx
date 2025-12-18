@@ -178,7 +178,7 @@ const Settings = () => {
               <div className="mb-3">
                 <h6>🌐 Frontend URL:</h6>
                 <code className="d-block p-2 bg-light rounded">
-                  https://smart-village1.netlify.app
+                  https://smart-village.pages.dev/
                 </code>
               </div>
 

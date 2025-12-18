@@ -25,6 +25,10 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(25);
   
+  // ✅ Birthday pagination
+  const [birthdayCurrentPage, setBirthdayCurrentPage] = useState(1);
+  const [birthdayRecordsPerPage, setBirthdayRecordsPerPage] = useState(25);
+  
   // Message
   const [message, setMessage] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -33,12 +37,67 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   const [todayBirthdays, setTodayBirthdays] = useState([]);
   const [selectedBirthdayRecipients, setSelectedBirthdayRecipients] = useState([]);
   
+  // ✅ Birthday filters
+  const [birthdayMandal, setBirthdayMandal] = useState('');
+  const [birthdayVillage, setBirthdayVillage] = useState('');
+  const [birthdayVillages, setBirthdayVillages] = useState([]);
+  const [filteredBirthdays, setFilteredBirthdays] = useState([]);
+  
   // Loading states
   const [sending, setSending] = useState(false);
   
   // History & Stats
   const [smsHistory, setSmsHistory] = useState([]);
   const [smsStats, setSmsStats] = useState(null);
+// ============================================
+// ADD THESE TO YOUR SMSCenter.jsx COMPONENT
+// ============================================
+
+// 1. ADD THESE STATE VARIABLES (after your other useState declarations around line 50):
+
+const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+const [historyRecordsPerPage, setHistoryRecordsPerPage] = useState(25);
+
+// 2. ADD THESE PAGINATION CALCULATIONS (after your state declarations, before the functions):
+
+// Pagination for SMS History
+const historyIndexOfLastRecord = historyCurrentPage * historyRecordsPerPage;
+const historyIndexOfFirstRecord = historyIndexOfLastRecord - historyRecordsPerPage;
+const currentHistoryRecords = smsHistory.slice(historyIndexOfFirstRecord, historyIndexOfLastRecord);
+const totalHistoryPages = Math.ceil(smsHistory.length / historyRecordsPerPage);
+
+// 3. ADD THIS HELPER FUNCTION (after your other helper functions):
+
+const getHistoryPageNumbers = () => {
+  const pages = [];
+  const maxVisible = 5;
+
+  if (totalHistoryPages <= maxVisible) {
+    for (let i = 1; i <= totalHistoryPages; i++) {
+      pages.push(i);
+    }
+  } else {
+    if (historyCurrentPage <= 3) {
+      for (let i = 1; i <= 4; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalHistoryPages);
+    } else if (historyCurrentPage >= totalHistoryPages - 2) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalHistoryPages - 3; i <= totalHistoryPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push('...');
+      pages.push(historyCurrentPage - 1);
+      pages.push(historyCurrentPage);
+      pages.push(historyCurrentPage + 1);
+      pages.push('...');
+      pages.push(totalHistoryPages);
+    }
+  }
+
+  return pages;
+};
 
   // SMS Templates
   const templates = [
@@ -80,25 +139,49 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   ];
 
   // ✅ Define functions BEFORE useEffect that uses them
-  const loadSMSHistory = async () => {
-    try {
-      const res = await fetch(`${API_URL}/sms-history`);
-      const data = await res.json();
+ const loadSMSHistory = async () => {
+  try {
+    const res = await fetch(`${API_URL}/sms-history`);
+    const data = await res.json();
+    
+    // ✅ Validate that data is an array
+    if (Array.isArray(data)) {
       setSmsHistory(data);
-    } catch (error) {
-      console.error('Error loading SMS history:', error);
+    } else {
+      console.error('SMS history response is not an array:', data);
+      setSmsHistory([]);
     }
-  };
+  } catch (error) {
+    console.error('Error loading SMS history:', error);
+    setSmsHistory([]);  // ✅ Set empty array on error
+  }
+};
 
-  const loadSMSStats = async () => {
-    try {
-      const res = await fetch(`${API_URL}/sms-stats`);
-      const data = await res.json();
+const loadSMSStats = async () => {
+  try {
+    const res = await fetch(`${API_URL}/sms-stats`);
+    const data = await res.json();
+    
+    // ✅ Validate response structure
+    if (data && typeof data === 'object' && !data.error) {
       setSmsStats(data);
-    } catch (error) {
-      console.error('Error loading SMS stats:', error);
+    } else {
+      console.error('Invalid SMS stats response:', data);
+      setSmsStats({
+        totalMessagesSent: 0,
+        totalRecipients: 0,
+        sentToday: 0
+      });
     }
-  };
+  } catch (error) {
+    console.error('Error loading SMS stats:', error);
+    setSmsStats({
+      totalMessagesSent: 0,
+      totalRecipients: 0,
+      sentToday: 0
+    });  // ✅ Set default values on error
+  }
+};
 
   const loadTodayBirthdays = useCallback(() => {
     const today = new Date();
@@ -112,8 +195,63 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     });
 
     setTodayBirthdays(birthdays);
+    setFilteredBirthdays(birthdays); // Initially show all
     setSelectedBirthdayRecipients(birthdays.map(b => b.id));
   }, [allRecords]);
+
+  // ✅ Filter birthdays by mandal/village - require BOTH
+  useEffect(() => {
+    // Reset if no mandal selected
+    if (!birthdayMandal) {
+      setBirthdayVillages([]);
+      setBirthdayVillage('');
+      setFilteredBirthdays([]);
+      setSelectedBirthdayRecipients([]);
+      return;
+    }
+
+    // Get villages for selected mandal
+    const mandalFiltered = todayBirthdays.filter(r => r.mandalName === birthdayMandal);
+    const uniqueVillages = [...new Set(mandalFiltered.map(r => r.villageName))].filter(Boolean).sort();
+    setBirthdayVillages(uniqueVillages);
+
+    // Only show birthdays if BOTH mandal AND village are selected
+    if (birthdayVillage) {
+      const filtered = mandalFiltered.filter(r => r.villageName === birthdayVillage);
+      setFilteredBirthdays(filtered);
+      setSelectedBirthdayRecipients(filtered.map(b => b.id));
+    } else {
+      setFilteredBirthdays([]);
+      setSelectedBirthdayRecipients([]);
+    }
+
+    setBirthdayCurrentPage(1); // Reset to page 1
+  }, [birthdayMandal, birthdayVillage, todayBirthdays]);
+
+  const handleBirthdayReset = () => {
+    setBirthdayMandal('');
+    setBirthdayVillage('');
+    setBirthdayVillages([]);
+    setFilteredBirthdays([]);
+    setSelectedBirthdayRecipients([]);
+    setBirthdayCurrentPage(1);
+  };
+
+  // ✅ Reset function for Send SMS tab
+  const handleSendSMSReset = () => {
+    setSelectedMandal('');
+    setSelectedVillage('');
+    setVillages([]);
+    setAgeMin('');
+    setAgeMax('');
+    setGender('');
+    setFilteredRecords([]);
+    setSelectedRecipients([]);
+    setShowPreview(false);
+    setMessage('');
+    setSelectedTemplate('');
+    setCurrentPage(1);
+  };
 
   // ✅ Now useEffect can use the functions defined above
   useEffect(() => {
@@ -133,6 +271,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
     }
     if (activeTab === 'birthday') {
       loadTodayBirthdays();
+      setBirthdayCurrentPage(1); // Reset to first page
     }
   }, [activeTab, loadTodayBirthdays]);
 
@@ -276,208 +415,210 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
   };
 
   const toggleAllBirthdayRecipients = () => {
-    if (selectedBirthdayRecipients.length === todayBirthdays.length) {
+    if (selectedBirthdayRecipients.length === filteredBirthdays.length) {
       setSelectedBirthdayRecipients([]);
     } else {
       const confirm = window.confirm(
         `⚠️ SELECT ALL WARNING\n\n` +
-        `You are about to select ALL ${todayBirthdays.length} birthday recipients.\n\n` +
+        `You are about to select ALL ${filteredBirthdays.length} birthday recipients.\n\n` +
         `Continue?`
       );
       
       if (confirm) {
-        setSelectedBirthdayRecipients(todayBirthdays.map(b => b.id));
+        setSelectedBirthdayRecipients(filteredBirthdays.map(b => b.id));
       }
     }
   };
 
-  // ✅ Send SMS with verification code
-  const handleSendSMS = async () => {
-    // Validation
-    if (!message.trim()) {
-      alert('⚠️ Please enter a message');
-      return;
-    }
+const handleSendBirthdaySMS = async () => {
+  if (selectedBirthdayRecipients.length === 0) {
+    alert('⚠️ Please select at least one recipient');
+    return;
+  }
 
-    if (selectedRecipients.length === 0) {
-      alert('⚠️ No recipients selected');
-      return;
-    }
+  // ✅ Get the birthday message from template or use visible preview message
+  let messageToSend = message.trim();
+  
+  if (!messageToSend) {
+    // Use the default birthday template that's shown in preview
+    const birthdayTemplate = templates.find(t => t.id === 'birthday');
+    messageToSend = birthdayTemplate ? birthdayTemplate.text : 
+      'Happy Birthday! 🎂 Wishing you a wonderful year ahead filled with joy and success. - Smart Village Team';
+  }
 
-    // Get selected records
-    const selectedRecords = filteredRecords.filter(r => selectedRecipients.includes(r.id));
-    const phoneNumbers = selectedRecords.map(r => r.phoneNumber);
+  const confirmation = window.confirm(
+    `📤 Send birthday SMS to ${selectedBirthdayRecipients.length} recipients?\n\n` +
+    `Message: ${messageToSend.substring(0, 100)}${messageToSend.length > 100 ? '...' : ''}\n\n` +
+    `Note: [NAME] will be replaced with each person's name.\n\n` +
+    `Type "CONFIRM" to proceed.`
+  );
 
-    // First confirmation - show details
-    const firstConfirm = window.confirm(
-      `📱 REVIEW BEFORE SENDING\n\n` +
-      `Recipients: ${phoneNumbers.length} people\n` +
-      `Village: ${selectedVillage || 'Multiple'}\n` +
-      `Mandal: ${selectedMandal || 'Multiple'}\n\n` +
-      `Message Preview:\n"${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"\n\n` +
-      `Click OK to continue, Cancel to go back`
-    );
+  if (!confirmation) return;
 
-    if (!firstConfirm) return;
+  // ✅ Ask for verification code
+  const verificationCode = window.prompt('Please type "CONFIRM" to proceed:');
+  
+  if (verificationCode !== 'CONFIRM') {
+    alert('❌ Verification failed. SMS not sent.');
+    return;
+  }
 
-    // ✅ Verification code step
-    const userCode = window.prompt(
-      `🔐 VERIFICATION REQUIRED\n\n` +
-      `To send SMS to ${phoneNumbers.length} people, type: CONFIRM\n\n` +
-      `This is a final safety check to prevent accidental sends.`
-    );
+  setSending(true);
 
-    if (!userCode) {
-      alert('❌ Sending cancelled - no verification code entered');
-      return;
-    }
+  try {
+    const recipients = filteredBirthdays
+      .filter(r => selectedBirthdayRecipients.includes(r.id))
+      .map(r => r.phoneNumber)
+      .filter(num => num);
 
-    if (userCode.toUpperCase() !== 'CONFIRM') {
-      alert('❌ Sending cancelled - incorrect verification code\n\nYou must type: CONFIRM');
-      return;
-    }
-
-    // Final confirmation
-    const finalConfirm = window.confirm(
-      `✅ VERIFICATION SUCCESSFUL\n\n` +
-      `Ready to send SMS to ${phoneNumbers.length} people.\n\n` +
-      `Final confirmation - Continue?`
-    );
-
-    if (!finalConfirm) return;
-
-    // Send SMS
-    try {
-      setSending(true);
-      const res = await fetch(`${API_URL}/send-sms-bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          numbers: phoneNumbers,
-          message: message
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        alert(
-          `✅ SMS SENT SUCCESSFULLY!\n\n` +
-          `Recipients: ${data.totalNumbers}\n` +
-          `${data.testMode ? '⚠️ Test Mode - SMS not actually sent (no API key configured)' : '✓ Real SMS sent via Fast2SMS'}`
-        );
-        
-        // ✅ Complete form reset - Clear everything
-        setMessage('');
-        setSelectedTemplate('');
-        setShowPreview(false);
-        setFilteredRecords([]);
-        setSelectedRecipients([]);
-        setSelectedMandal('');
-        setSelectedVillage('');
-        setVillages([]);
-        setAgeMin('');
-        setAgeMax('');
-        setGender('');
-        setCurrentPage(1);
-      } else {
-        alert(`❌ Failed to send SMS\n\nError: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error sending SMS:', error);
-      alert('❌ Error sending SMS. Please try again.');
-    } finally {
+    if (recipients.length === 0) {
+      alert('⚠️ No valid phone numbers found');
       setSending(false);
-    }
-  };
-
-  const handleSendBirthdaySMS = async () => {
-    if (selectedBirthdayRecipients.length === 0) {
-      alert('⚠️ No recipients selected');
       return;
     }
 
-    const selectedBirthdays = todayBirthdays.filter(b => selectedBirthdayRecipients.includes(b.id));
+    // ✅ Send personalized messages
+    let successCount = 0;
+    let failedCount = 0;
 
-    // Confirmation with verification
-    const firstConfirm = window.confirm(
-      `🎂 SEND BIRTHDAY WISHES\n\n` +
-      `Recipients: ${selectedBirthdays.length} people\n\n` +
-      selectedBirthdays.map(b => `• ${b.name}`).join('\n').substring(0, 200) +
-      `${selectedBirthdays.length > 5 ? '\n...' : ''}\n\n` +
-      `Each person will receive a personalized message.\n\n` +
-      `Continue?`
-    );
+    for (const recipient of filteredBirthdays.filter(r => selectedBirthdayRecipients.includes(r.id))) {
+      const personalizedMessage = messageToSend.replace('[NAME]', recipient.name);
+      
+      try {
+        const response = await fetch(`${API_URL}/send-sms-bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            numbers: [recipient.phoneNumber],
+            message: personalizedMessage
+          })
+        });
 
-    if (!firstConfirm) return;
-
-    // Verification code
-    const userCode = window.prompt(
-      `🔐 VERIFICATION REQUIRED\n\n` +
-      `To send birthday SMS to ${selectedBirthdays.length} people, type: CONFIRM`
-    );
-
-    if (!userCode || userCode.toUpperCase() !== 'CONFIRM') {
-      alert('❌ Sending cancelled - incorrect verification code');
-      return;
-    }
-
-    try {
-      setSending(true);
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const person of selectedBirthdays) {
-        const personalizedMessage = `Happy Birthday ${person.name}! 🎂 Wishing you a wonderful year ahead filled with joy and success. - Smart Village Team`;
-        
-        try {
-          const res = await fetch(`${API_URL}/send-sms-bulk`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              numbers: [person.phoneNumber],
-              message: personalizedMessage
-            })
-          });
-
-          const data = await res.json();
-          if (data.success) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch (error) {
-          failCount++;
+        const result = await response.json();
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
         }
+      } catch (error) {
+        console.error(`Failed to send to ${recipient.name}:`, error);
+        failedCount++;
       }
-
-      alert(
-        `🎂 BIRTHDAY SMS COMPLETED\n\n` +
-        `✅ Sent: ${successCount}\n` +
-        `${failCount > 0 ? `❌ Failed: ${failCount}\n` : ''}` +
-        `\nCheck History tab for details.`
-      );
-
-      // ✅ Reset birthday selection
-      setSelectedBirthdayRecipients([]);
-      // Reload today's birthdays to refresh the list
-      loadTodayBirthdays();
-
-    } catch (error) {
-      console.error('Error sending birthday SMS:', error);
-      alert('❌ Error sending birthday SMS');
-    } finally {
-      setSending(false);
     }
-  };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-IN', { 
-      dateStyle: 'medium', 
-      timeStyle: 'short' 
+    if (successCount > 0) {
+      alert(
+        `✅ Birthday SMS sent!\n\n` +
+        `Successful: ${successCount}\n` +
+        `Failed: ${failedCount}`
+      );
+      
+      // ✅ RESET ALL FILTERS AND SELECTIONS
+      setBirthdayMandal('');
+      setBirthdayVillage('');
+      setBirthdayVillages([]);
+      setFilteredBirthdays([]);
+      setSelectedBirthdayRecipients([]);
+      setMessage('');
+      setSelectedTemplate('');
+      setBirthdayCurrentPage(1);
+      
+      // Switch to history tab
+      setActiveTab('history');
+      
+      // Reload SMS history
+      await loadSMSHistory();
+    } else {
+      alert(`❌ All messages failed to send. Please check your connection.`);
+    }
+  } catch (error) {
+    console.error('Error sending birthday SMS:', error);
+    alert('⚠️ Error sending SMS. Please check your connection and try again.');
+  } finally {
+    setSending(false);
+  }
+};
+
+const handleSendSMS = async () => {
+  if (selectedRecipients.length === 0) {
+    alert('⚠️ Please select at least one recipient');
+    return;
+  }
+
+  if (!message || message.trim() === '') {
+    alert('⚠️ Please enter a message');
+    return;
+  }
+
+  const confirmation = window.confirm(
+    `📤 Send SMS to ${selectedRecipients.length} recipients?\n\n` +
+    `Message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}\n\n` +
+    `Click OK to proceed.`
+  );
+
+  if (!confirmation) return;
+
+  setSending(true);
+
+  try {
+    const recipients = filteredRecords
+      .filter(r => selectedRecipients.includes(r.id))
+      .map(r => r.phoneNumber)
+      .filter(num => num);
+
+    if (recipients.length === 0) {
+      alert('⚠️ No valid phone numbers found');
+      setSending(false);
+      return;
+    }
+
+    const response = await fetch(`${API_URL}/send-sms-bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numbers: recipients,
+        message: message
+      })
     });
-  };
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert(
+        `✅ SMS sent successfully!\n\n` +
+        `Recipients: ${result.totalNumbers}\n` +
+        `${result.testMode ? '(Test Mode - No actual SMS sent)' : ''}`
+      );
+      
+      // ✅ RESET FILTERS (optional for Send SMS tab)
+      setSelectedMandal('');
+      setSelectedVillage('');
+      setVillages([]);
+      setFilteredRecords([]);
+      setSelectedRecipients([]);
+      setMessage('');
+      setSelectedTemplate('');
+      setAgeMin('');
+      setAgeMax('');
+      setGender('');
+      setCurrentPage(1);
+      
+      // Switch to history tab
+      setActiveTab('history');
+      
+      // Reload history
+      await loadSMSHistory();
+      
+    } else {
+      alert(`❌ Failed to send SMS: ${result.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    alert('⚠️ Error sending SMS. Please check your connection and try again.');
+  } finally {
+    setSending(false);
+  }
+};
 
   const formatDateOnly = (dateString) => {
     if (!dateString) return 'N/A';
@@ -524,6 +665,54 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
         pages.push(currentPage + 1);
         pages.push('...');
         pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
+
+  // ✅ Birthday pagination logic
+  const birthdayIndexOfLastRecord = birthdayCurrentPage * birthdayRecordsPerPage;
+  const birthdayIndexOfFirstRecord = birthdayIndexOfLastRecord - birthdayRecordsPerPage;
+  const currentBirthdayRecords = filteredBirthdays.slice(birthdayIndexOfFirstRecord, birthdayIndexOfLastRecord);
+  const birthdayTotalPages = Math.ceil(filteredBirthdays.length / birthdayRecordsPerPage);
+
+  const birthdayPaginate = (pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= birthdayTotalPages) {
+      setBirthdayCurrentPage(pageNumber);
+    }
+  };
+
+  const handleBirthdayRecordsPerPageChange = (e) => {
+    setBirthdayRecordsPerPage(Number(e.target.value));
+    setBirthdayCurrentPage(1);
+  };
+
+  const getBirthdayPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    
+    if (birthdayTotalPages <= maxVisible) {
+      for (let i = 1; i <= birthdayTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (birthdayCurrentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(birthdayTotalPages);
+      } else if (birthdayCurrentPage >= birthdayTotalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = birthdayTotalPages - 3; i <= birthdayTotalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(birthdayCurrentPage - 1);
+        pages.push(birthdayCurrentPage);
+        pages.push(birthdayCurrentPage + 1);
+        pages.push('...');
+        pages.push(birthdayTotalPages);
       }
     }
     
@@ -658,13 +847,21 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                 </div>
 
                 <div className="col-12">
-                  <button 
-                    className="btn btn-primary btn-lg"
-                    onClick={applyFilters}
-                    disabled={!selectedMandal || !selectedVillage}
-                  >
-                    🔍 Find Recipients
-                  </button>
+                  <div className="d-flex gap-2">
+                    <button 
+                      className="btn btn-primary btn-lg"
+                      onClick={applyFilters}
+                      disabled={!selectedMandal || !selectedVillage}
+                    >
+                      🔍 Find Recipients
+                    </button>
+                    <button 
+                      className="btn btn-secondary btn-lg"
+                      onClick={handleSendSMSReset}
+                    >
+                      🔄 Reset All
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -876,30 +1073,131 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
             <h5 className="mb-0">🎂 Today's Birthdays</h5>
           </div>
           <div className="card-body">
-            {todayBirthdays.length === 0 ? (
+            {/* ✅ Filter Controls */}
+            <div className="card mb-3 bg-light">
+              <div className="card-body">
+                <h6 className="card-title">🔍 Filter Birthdays</h6>
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold">Mandal</label>
+                    <select
+                      className="form-select"
+                      value={birthdayMandal}
+                      onChange={(e) => {
+                        setBirthdayMandal(e.target.value);
+                        setBirthdayVillage('');
+                      }}
+                    >
+                      <option value="">-- Choose Mandal --</option>
+                      {mandals.map(mandal => (
+                        <option key={mandal} value={mandal}>{mandal}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold">Village</label>
+                    <select
+                      className="form-select"
+                      value={birthdayVillage}
+                      onChange={(e) => setBirthdayVillage(e.target.value)}
+                      disabled={!birthdayMandal}
+                    >
+                      <option value="">-- Choose Village --</option>
+                      {birthdayVillages.map(village => (
+                        <option key={village} value={village}>{village}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-4 d-flex align-items-end">
+                    <button 
+                      className="btn btn-secondary w-100"
+                      onClick={handleBirthdayReset}
+                    >
+                      🔄 Reset Filters
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="alert alert-info mt-3 mb-0">
+                  {birthdayMandal && birthdayVillage ? (
+                    <>
+                      <strong>📊 Birthdays Found:</strong> {filteredBirthdays.length} in {birthdayVillage}, {birthdayMandal}
+                    </>
+                  ) : (
+                    <>
+                      <strong>ℹ️ Tip:</strong> Select mandal and village to see today's birthdays
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ✅ Instructions when no filters selected */}
+            {!birthdayMandal && !birthdayVillage && (
               <div className="alert alert-info">
-                <h6 className="alert-heading">No birthdays today</h6>
+                <h5 className="alert-heading">📋 How to View Today's Birthdays</h5>
+                <ol className="mb-0">
+                  <li>Select a <strong>Mandal</strong> from the filter above</li>
+                  <li>Then select a <strong>Village</strong></li>
+                  <li>Birthday records will appear</li>
+                </ol>
+              </div>
+            )}
+
+            {/* ✅ Message when only mandal selected */}
+            {birthdayMandal && !birthdayVillage && (
+              <div className="alert alert-warning">
+                <strong>⚠️ Please select a Village</strong> to view birthdays from {birthdayMandal}
+              </div>
+            )}
+
+            {/* ✅ Show birthdays only when BOTH mandal AND village selected */}
+            {birthdayMandal && birthdayVillage && filteredBirthdays.length === 0 && (
+              <div className="alert alert-warning">
+                <h6 className="alert-heading">No birthdays today in this village</h6>
                 <p className="mb-0">
-                  There are no birthdays today in the system. Check back tomorrow!
+                  There are no birthdays today in {birthdayVillage}, {birthdayMandal}.
+                  <br/>Try selecting a different village or check back tomorrow!
                 </p>
               </div>
-            ) : (
+            )}
+
+            {/* ✅ Birthday list - Only show when BOTH mandal AND village selected AND has birthdays */}
+            {birthdayMandal && birthdayVillage && filteredBirthdays.length > 0 && (
               <>
                 <div className="alert alert-success">
-                  <strong>🎉 {todayBirthdays.length} birthday(s) found today!</strong>
+                  <strong>🎉 {filteredBirthdays.length} birthday(s) found in {birthdayVillage}!</strong>
                 </div>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h6>Select recipients:</h6>
-                  <div>
+                  <div className="d-flex gap-2 align-items-center">
+                    {/* ✅ Records per page dropdown */}
+                    <label className="mb-0">Show:</label>
+                    <select 
+                      className="form-select form-select-sm" 
+                      style={{ width: 'auto' }}
+                      value={birthdayRecordsPerPage}
+                      onChange={handleBirthdayRecordsPerPageChange}
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span>per page</span>
+                    
                     <button 
-                      className="btn btn-sm btn-outline-secondary me-2"
+                      className="btn btn-sm btn-outline-secondary"
                       onClick={toggleAllBirthdayRecipients}
                     >
-                      {selectedBirthdayRecipients.length === todayBirthdays.length ? 'Deselect All' : 'Select All'}
+                      {selectedBirthdayRecipients.length === filteredBirthdays.length ? 'Deselect All' : 'Select All'}
                     </button>
                     <span className="badge bg-primary">
-                      {selectedBirthdayRecipients.length} / {todayBirthdays.length} selected
+                      {selectedBirthdayRecipients.length} / {filteredBirthdays.length} selected
                     </span>
                   </div>
                 </div>
@@ -911,7 +1209,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                         <th width="50">
                           <input
                             type="checkbox"
-                            checked={selectedBirthdayRecipients.length === todayBirthdays.length}
+                            checked={selectedBirthdayRecipients.length === filteredBirthdays.length && filteredBirthdays.length > 0}
                             onChange={toggleAllBirthdayRecipients}
                           />
                         </th>
@@ -923,7 +1221,7 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {todayBirthdays.map(person => (
+                      {currentBirthdayRecords.map(person => (
                         <tr key={person.id}>
                           <td>
                             <input
@@ -942,6 +1240,40 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* ✅ Birthday Pagination */}
+                {birthdayTotalPages > 1 && (
+                  <div className="card mb-3">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div className="text-muted small">
+                          Showing {birthdayIndexOfFirstRecord + 1} to {Math.min(birthdayIndexOfLastRecord, filteredBirthdays.length)} of {filteredBirthdays.length} birthdays
+                        </div>
+                        <nav>
+                          <ul className="pagination pagination-sm mb-0">
+                            <li className={`page-item ${birthdayCurrentPage === 1 ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => birthdayPaginate(birthdayCurrentPage - 1)}>Previous</button>
+                            </li>
+                            {getBirthdayPageNumbers().map((page, index) => (
+                              page === '...' ? (
+                                <li key={`ellipsis-${index}`} className="page-item disabled">
+                                  <span className="page-link">...</span>
+                                </li>
+                              ) : (
+                                <li key={page} className={`page-item ${birthdayCurrentPage === page ? 'active' : ''}`}>
+                                  <button className="page-link" onClick={() => birthdayPaginate(page)}>{page}</button>
+                                </li>
+                              )
+                            ))}
+                            <li className={`page-item ${birthdayCurrentPage === birthdayTotalPages ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => birthdayPaginate(birthdayCurrentPage + 1)}>Next</button>
+                            </li>
+                          </ul>
+                        </nav>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="alert alert-info">
                   <strong>📱 Message Preview:</strong>
@@ -976,39 +1308,171 @@ const SMSCenter = ({ records: allRecordsFromProps = [] }) => {
       )}
 
       {/* ===== HISTORY TAB ===== */}
-      {activeTab === 'history' && (
-        <div className="card shadow-sm">
-          <div className="card-header bg-info text-white">
-            <h5 className="mb-0">📜 SMS History</h5>
-          </div>
-          <div className="card-body">
-            {smsHistory.length === 0 ? (
-              <div className="alert alert-info">No SMS history found</div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-striped">
-                  <thead>
-                    <tr>
-                      <th>Date & Time</th>
-                      <th>Message</th>
-                      <th>Recipients</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {smsHistory.map((log, index) => (
-                      <tr key={log.id || index}>
-                        <td>{formatDate(log.sentAt)}</td>
-                        <td style={{ maxWidth: '400px' }}>{log.message}</td>
-                        <td>{log.recipients} numbers</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+{activeTab === 'history' && (
+  <div className="card shadow-sm">
+    <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
+      <h5 className="mb-0">📜 SMS History</h5>
+      <button 
+        className="btn btn-light btn-sm"
+        onClick={loadSMSHistory}
+      >
+        🔄 Refresh
+      </button>
+    </div>
+    <div className="card-body">
+      {smsHistory.length === 0 ? (
+        <div className="text-center text-muted py-5">
+          <h5>📭 No SMS history yet</h5>
+          <p>Messages sent will appear here</p>
         </div>
+      ) : (
+        <>
+          {/* Pagination Controls - Top */}
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div className="d-flex align-items-center gap-2">
+              <label className="mb-0">Show:</label>
+              <select 
+                className="form-select form-select-sm" 
+                style={{ width: 'auto' }}
+                value={historyRecordsPerPage}
+                onChange={(e) => {
+                  setHistoryRecordsPerPage(Number(e.target.value));
+                  setHistoryCurrentPage(1);
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-muted">per page</span>
+            </div>
+            <div className="text-muted">
+              Showing {historyIndexOfFirstRecord + 1} to {Math.min(historyIndexOfLastRecord, smsHistory.length)} of {smsHistory.length} messages
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="table-responsive" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+            <table className="table table-hover table-sm mb-0" style={{ fontSize: '0.9rem' }}>
+              <thead className="table-light sticky-top">
+                <tr>
+                  <th style={{ width: '40px' }}>#</th>
+                  <th style={{ width: '140px' }}>Date & Time</th>
+                  <th style={{ minWidth: '300px' }}>Message</th>
+                  <th style={{ width: '70px' }} className="text-center">Count</th>
+                  <th style={{ width: '150px' }}>Phone Numbers</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentHistoryRecords.map((log, index) => (
+                  <tr key={log.id}>
+                    <td className="text-muted">{historyIndexOfFirstRecord + index + 1}</td>
+                    <td>
+                      <small className="text-nowrap">
+                        {new Date(log.sentAt).toLocaleString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </small>
+                    </td>
+                    <td>
+                      <div style={{ 
+                        maxHeight: '80px', 
+                        overflowY: 'auto',
+                        wordBreak: 'break-word'
+                      }}>
+                        {log.message}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge bg-primary">
+                        {log.recipients}
+                      </span>
+                    </td>
+                    <td>
+                      {log.numbers ? (
+                        <details className="cursor-pointer">
+                          <summary 
+                            className="text-primary fw-bold" 
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            📱 View
+                          </summary>
+                          <div className="mt-2 p-2 bg-light rounded" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                            {log.numbers.split(',').map((num, i) => (
+                              <span key={i} className="badge bg-secondary me-1 mb-1 font-monospace">
+                                {num.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        </details>
+                      ) : (
+                        <span className="text-muted">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls - Bottom */}
+          {totalHistoryPages > 1 && (
+            <div className="d-flex justify-content-center mt-3">
+              <nav>
+                <ul className="pagination pagination-sm mb-0">
+                  <li className={`page-item ${historyCurrentPage === 1 ? 'disabled' : ''}`}>
+                    <button 
+                      className="page-link"
+                      onClick={() => setHistoryCurrentPage(historyCurrentPage - 1)}
+                      disabled={historyCurrentPage === 1}
+                    >
+                      Previous
+                    </button>
+                  </li>
+                  
+                  {getHistoryPageNumbers().map((pageNum, index) => (
+                    <li 
+                      key={index}
+                      className={`page-item ${pageNum === historyCurrentPage ? 'active' : ''} ${pageNum === '...' ? 'disabled' : ''}`}
+                    >
+                      {pageNum === '...' ? (
+                        <span className="page-link">...</span>
+                      ) : (
+                        <button 
+                          className="page-link"
+                          onClick={() => setHistoryCurrentPage(pageNum)}
+                        >
+                          {pageNum}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                  
+                  <li className={`page-item ${historyCurrentPage === totalHistoryPages ? 'disabled' : ''}`}>
+                    <button 
+                      className="page-link"
+                      onClick={() => setHistoryCurrentPage(historyCurrentPage + 1)}
+                      disabled={historyCurrentPage === totalHistoryPages}
+                    >
+                      Next
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          )}
+        </>
       )}
+    </div>
+  </div>
+)}
 
       {/* ===== STATISTICS TAB ===== */}
       {activeTab === 'stats' && (

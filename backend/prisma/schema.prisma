@@ -1,35 +1,47 @@
-datasource db {
-  provider = "postgresql"
-  url = env("DATABASE_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
 model FamilyRecord {
-  id                   Int      @id @default(autoincrement())
-  mandalName           String
-  villageName          String
-  rationCard           String?
-  voterCard            String?
-  name                 String   // ← Changed from familyHead to name
-  numFamilyPersons     Int
-  address              String
-  phoneNumber          String
-  aadhar               String?
-  gender               String
-  dateOfBirth          DateTime?
-  qualification        String?
-  caste                String?
-  subCaste             String?
-  occupation           String?
-  needEmployment       String?
-  arogyasriCardNumber  String?
-  shgMember            String?
-  schemesEligible      String?
-  remarks              String?
-  birthdayThisWeek     Boolean  @default(false)
-  birthdayThisMonth    Boolean  @default(false)
-  createdAt            DateTime @default(now())
+  id                  Int       @id @default(autoincrement())
+  mandalName          String
+  villageName         String
+  rationCard          String?
+  voterCard           String?
+  name                String
+  numFamilyPersons    Int
+  address             String
+  phoneNumber         String
+  aadhar              String?
+  gender              String
+  dateOfBirth         DateTime?
+  qualification       String?
+  caste               String?
+  subCaste            String?
+  occupation          String?
+  needEmployment      String?
+  arogyasriCardNumber String?
+  shgMember           String?
+  schemesEligible     String?
+  remarks             String?
+  birthdayThisWeek    Boolean   @default(false)
+  birthdayThisMonth   Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+}
+
+model SmsLog {
+  id         Int      @id @default(autoincrement())
+  message    String   @db.Text    // ✅ Add @db.Text here
+  recipients Int
+  numbers    String   @db.Text
+  sentAt     DateTime @default(now())
+  status     String   @default("sent")
+
+  @@map("sms_logs")
 }

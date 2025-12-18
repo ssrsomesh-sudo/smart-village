@@ -4,7 +4,7 @@ import { API_URL } from '../config/api';
 const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   const [allRecords, setAllRecords] = useState([]);
   const [birthdays, setBirthdays] = useState([]);
-  const [error, setError] = useState('');
+  const [error, _setError] = useState('');
   
   // Filter states
   const [mandals, setMandals] = useState([]);
@@ -25,82 +25,96 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
   }, [allRecordsFromProps]);
 
   // ✅ Filter birthdays - only when BOTH mandal AND village are selected
-  const filterBirthdays = (records, mandal, village, daysAhead = null, specificDate = null) => {
-    // Don't filter if mandal or village not selected
-    if (!mandal || !village) {
-      setBirthdays([]);
-      return;
+ // ✅ FIXED: Filter birthdays with IST timezone support
+// ✅ COMPLETE FIX - Replace entire filterBirthdays function with this
+const filterBirthdays = (records, mandal, village, daysAhead = null, specificDate = null) => {
+  if (!mandal || !village) {
+    setBirthdays([]);
+    return;
+  }
+
+  let filtered = records;
+  filtered = filtered.filter(r => r.mandalName === mandal);
+  filtered = filtered.filter(r => r.villageName === village);
+
+  // ✅ Get current date in IST - create at START of day
+  const now = new Date();
+  const istString = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const istDate = new Date(istString);
+  
+  // Create today at midnight IST
+  const todayYear = istDate.getFullYear();
+  const todayMonth = istDate.getMonth(); // 0-11
+  const todayDay = istDate.getDate(); // 1-31
+  const todayMidnight = new Date(todayYear, todayMonth, todayDay, 0, 0, 0, 0);
+
+  const result = filtered.filter(r => {
+    if (!r.dateOfBirth) return false;
+
+    const dob = new Date(r.dateOfBirth);
+    
+    // ✅ Extract birth month/day using UTC to avoid shift
+    const birthMonth = dob.getUTCMonth(); // 0-11
+    const birthDay = dob.getUTCDate(); // 1-31
+    
+    if (specificDate) {
+      const targetDate = new Date(specificDate);
+      const targetMonth = targetDate.getUTCMonth();
+      const targetDay = targetDate.getUTCDate();
+      return birthMonth === targetMonth && birthDay === targetDay;
+    } else if (daysAhead !== null) {
+      // Create birthday for this year using local date components
+      let thisYearBirthday = new Date(todayYear, birthMonth, birthDay, 0, 0, 0, 0);
+      
+      // If birthday already passed this year, use next year
+      if (thisYearBirthday < todayMidnight) {
+        thisYearBirthday = new Date(todayYear + 1, birthMonth, birthDay, 0, 0, 0, 0);
+      }
+      
+      // Calculate end date (today + daysAhead)
+      const endDate = new Date(todayYear, todayMonth, todayDay + daysAhead, 23, 59, 59, 999);
+      
+      // Check if birthday is within range [today, today+daysAhead]
+      return thisYearBirthday >= todayMidnight && thisYearBirthday <= endDate;
     }
+    
+    return false;
+  });
 
-    let filtered = records;
 
-    // Filter by mandal
-    filtered = filtered.filter(r => r.mandalName === mandal);
-
-    // Filter by village
-    filtered = filtered.filter(r => r.villageName === village);
-
-    // Filter by date or days ahead
-    const result = filtered.filter(r => {
-      if (!r.dateOfBirth) return false;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const birth = new Date(r.dateOfBirth);
-      
-      if (specificDate) {
-        // Check if birthday matches specific date
-        const targetDate = new Date(specificDate);
-        const thisYearBirthday = new Date(targetDate.getFullYear(), birth.getMonth(), birth.getDate());
-        return thisYearBirthday.getTime() === targetDate.getTime();
-      } else if (daysAhead !== null) {
-        // Check if birthday is within next N days
-        const thisYearBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
-        const nextYearBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
+  const enriched = result.map(record => {
+    const dob = new Date(record.dateOfBirth);
+    const birthMonth = dob.getUTCMonth();
+    const birthDay = dob.getUTCDate();
+    
+    let thisYearBirthday = new Date(Date.UTC(todayYear, birthMonth, birthDay, 0, 0, 0, 0));
         
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() + daysAhead);
-        
-        return (thisYearBirthday >= today && thisYearBirthday <= targetDate) ||
-               (nextYearBirthday >= today && nextYearBirthday <= targetDate);
-      }
-      
-      return false;
-    });
+    if (specificDate) {
+      const targetDate = new Date(specificDate);
+      thisYearBirthday = new Date(Date.UTC(targetDate.getFullYear(), birthMonth, birthDay, 0, 0, 0, 0));
+    }
+    
+    if (thisYearBirthday < todayMidnight && !specificDate) {
+      thisYearBirthday = new Date(Date.UTC(todayYear + 1, birthMonth, birthDay, 0, 0, 0, 0));
+    }
+    
+    // Calculate days until birthday
+    const daysUntil = Math.round((thisYearBirthday - todayMidnight) / (1000 * 60 * 60 * 24));
+    const age = thisYearBirthday.getFullYear() - dob.getUTCFullYear();
+    
+    return {
+      ...record,
+      daysUntilBirthday: daysUntil,
+      upcomingAge: age,
+      birthdayDate: thisYearBirthday.toISOString().split('T')[0]
+    };
+  });
 
-    // Calculate days until birthday and age
-    const enriched = result.map(record => {
-      const birth = new Date(record.dateOfBirth);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      let thisYearBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
-      
-      if (specificDate) {
-        const targetDate = new Date(specificDate);
-        thisYearBirthday = new Date(targetDate.getFullYear(), birth.getMonth(), birth.getDate());
-      }
-      
-      if (thisYearBirthday < today && !specificDate) {
-        thisYearBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
-      }
-      
-      const daysUntil = Math.ceil((thisYearBirthday - today) / (1000 * 60 * 60 * 24));
-      
-      let age = thisYearBirthday.getFullYear() - birth.getFullYear();
-      
-      return {
-        ...record,
-        daysUntilBirthday: daysUntil,
-        upcomingAge: age,
-        birthdayDate: thisYearBirthday.toISOString().split('T')[0]
-      };
-    });
-
-    enriched.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
-    setBirthdays(enriched);
-    setCurrentPage(1); // Reset to first page
-  };
+  enriched.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
+  
+  setBirthdays(enriched);
+  setCurrentPage(1);
+};
 
   const handleMandalChange = (mandal) => {
     setSelectedMandal(mandal);
@@ -152,13 +166,14 @@ const UpcomingBirthdays = ({ records: allRecordsFromProps = [] }) => {
     setBirthdays([]);
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const day = date.getDate();
-    const month = date.toLocaleDateString('en-US', { month: 'long' });
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  const day = date.getUTCDate();
+  const month = date.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const year = date.getUTCFullYear();
+  const result = `${day} ${month} ${year}`;
+  return result;
+};
 
   const getDaysText = (days) => {
     if (days === 0) return 'Today! 🎉';
