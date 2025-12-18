@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider     = "postgresql"
   url          = env("DATABASE_URL")
-  relationMode = "prisma"
 }
 
 model FamilyRecord {
@@ -37,7 +36,7 @@ model FamilyRecord {
 
 model SmsLog {
   id         Int      @id @default(autoincrement())
-  message    String   @db.Text    // ✅ Add @db.Text here
+  message    String   @db.Text
   recipients Int
   numbers    String   @db.Text
   sentAt     DateTime @default(now())
