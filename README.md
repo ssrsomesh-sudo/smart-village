@@ -1,4 +1,3 @@
-# smart-village
 # 🏘️ Smart Village
 
 > A comprehensive village management system for Tadipatri constituency, Andhra Pradesh
@@ -19,6 +18,12 @@ To digitize village records, improve citizen communication, and strengthen commu
 
 ## ✨ Key Features
 
+### 🔐 Authentication & Role-Based Access
+- Secure login screen — site is fully protected, no access without credentials
+- **Admin role:** Full access to all features including SMS, Delete, Backup, Settings
+- **User role:** Restricted access — Dashboard, Residents, Birthdays, Search, Template only
+- Session persists across page refresh (sessionStorage)
+
 ### 📊 Dashboard
 - Real-time statistics and analytics
 - Mandal-wise and village-wise distribution
@@ -27,20 +32,33 @@ To digitize village records, improve citizen communication, and strengthen commu
 ### 📁 Data Management
 - Excel file upload (.xlsx, .xls)
 - Bulk data import with validation
-- 103,082+ family records
+- 121,990+ family records
 - Advanced search and filtering
 
 ### 🎂 Birthday Management
-- Automatic birthday detection (IST timezone)
-- Filter by mandal, village, date range
-- Age calculation
-- Pagination (10/25/50/100 per page)
+- Select a **Mandal** to auto-load all villages' birthdays at once
+- Optionally narrow down by specific **Village**
+- **From Date / To Date** range filter for flexible date-based search
+- Results sorted **village-wise** (alphabetical) then by birthday date
+- Pagination with 10 / 25 / 50 / 100 records per page options
+- **Export to Excel** — downloads all shown birthday records as a CSV file with all columns
+- Age calculation and days-until-birthday badge
+- IST timezone support
 
-### 📱 SMS Center
+### 📱 SMS Center *(Admin only)*
 - **Send SMS:** Bulk SMS with filters (mandal, village, age, gender)
 - **Birthday SMS:** Auto-personalized birthday wishes with [NAME] replacement
 - **History:** Full SMS log with pagination and phone number tracking
 - **Statistics:** Message analytics and delivery tracking
+
+---
+
+## 🔑 Login Credentials
+
+| Role | Username | Password | Access |
+|------|----------|----------|--------|
+| Admin | `admin` | `admin@123` | All features |
+| User | `user` | `user@123` | Dashboard, Residents, Birthdays, Search, Template |
 
 ---
 
@@ -49,8 +67,8 @@ To digitize village records, improve citizen communication, and strengthen commu
 ### Frontend
 - **Framework:** React 18 + Vite
 - **UI:** Bootstrap 5
+- **Auth:** React Context API (hardcoded credentials, frontend-only)
 - **State Management:** React Hooks
-- **Routing:** React Router DOM
 - **HTTP Client:** Fetch API
 
 ### Backend
@@ -62,14 +80,14 @@ To digitize village records, improve citizen communication, and strengthen commu
 
 ### Database
 - **Type:** PostgreSQL
-- **Hosting:** Render.com
+- **Hosting:** Railway PostgreSQL
 - **Size:** 103,082+ records
 - **Tables:** FamilyRecord, sms_logs
 
 ### Deployment
-- **Frontend:** Cloudflare Pages (auto-deploy)
-- **Backend:** Railway (auto-deploy)
-- **Database:** Render PostgreSQL
+- **Frontend:** Cloudflare Pages (auto-deploy on push to `main`)
+- **Backend:** Railway (auto-deploy on push to `main`)
+- **Database:** Railway PostgreSQL
 - **Version Control:** Git + GitHub
 
 ---
@@ -77,7 +95,7 @@ To digitize village records, improve citizen communication, and strengthen commu
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL database
 - Fast2SMS API key
 
@@ -85,7 +103,7 @@ To digitize village records, improve citizen communication, and strengthen commu
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/smart-village.git
+git clone https://github.com/ssrsomesh-sudo/smart-village.git
 cd smart-village
 ```
 
@@ -105,11 +123,6 @@ npx prisma generate
 ```
 
 3. **Configure environment variables**
-
-Frontend `.env`:
-```env
-VITE_API_URL=http://localhost:5000
-```
 
 Backend `.env`:
 ```env
@@ -179,8 +192,10 @@ SMS history tracking:
 
 ---
 
-## 🔐 Security
+## 🔒 Security
 
+- Login-protected — all pages require authentication
+- Role-based access control (Admin / User)
 - Environment variables for sensitive data
 - API key protection
 - CORS configuration
@@ -209,11 +224,15 @@ SMS history tracking:
 ## 🐛 Known Issues & Solutions
 
 ### Timezone Handling (Fixed: Dec 18, 2025)
-**Issue:** Birthday dates showing 1 day off  
+**Issue:** Birthday dates showing 1 day off
 **Solution:** Implemented UTC date handling throughout the application
 - Use `Date.UTC()` for date creation
 - Use `.getUTCMonth()`, `.getUTCDate()` for extraction
 - IST timezone handling for current date
+
+### Database Migration (Fixed: Jul 2026)
+**Issue:** Render PostgreSQL free tier expired — `P1017: Server has closed the connection`
+**Solution:** Migrated database to Railway PostgreSQL
 
 ---
 
@@ -229,13 +248,13 @@ SMS history tracking:
 
 ## 🔮 Future Enhancements
 
-- [ ] User authentication & authorization
-- [ ] Role-based access control (Admin, Operator, Viewer)
+- [x] User authentication & authorization ✅ *Completed Jul 2026*
+- [x] Role-based access control (Admin / User) ✅ *Completed Jul 2026*
+- [x] Data export (Excel/CSV) ✅ *Completed Jul 2026*
 - [ ] Advanced reporting & analytics
 - [ ] SMS delivery status tracking
 - [ ] Mobile app (React Native)
 - [ ] Offline capability
-- [ ] Data export (PDF, Excel)
 - [ ] Multi-language support (Telugu, English)
 - [ ] WhatsApp integration
 - [ ] Email notifications
@@ -262,8 +281,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👨‍💻 Developer
 
-**Somesh**  
-Developed for Tadipatri Constituency, Andhra Pradesh
+**Somesh**
+Developed for Tadipatri Constituency - 515411, Anantapuram, Andhra Pradesh
 
 ---
 
@@ -285,10 +304,10 @@ For issues, questions, or suggestions:
 
 ## 🌟 Show Your Support
 
-If this project helped you, please give it a ⭐️!
+If this project helped you, please give it a ⭐!
 
 ---
 
 **Live Demo:** [https://smart-village.pages.dev/](https://smart-village.pages.dev/)
 
-**Last Updated:** December 18, 2025
+**Last Updated:** July 2026
